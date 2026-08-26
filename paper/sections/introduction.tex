@@ -1,9 +1,21 @@
 \section{Introduction}
 \label{sec:introduction}
 
-% NOTE: drafted from your outline's [background]/[Gap]/[Our method and contribution]
-% points, in that order, turned into flowing prose. See the chat message for the
-% two duplication issues flagged with \notetoself below.
+% NOTE: each subsection below opens with an italic quote block reproducing
+% your original main.tex bullet points verbatim (typos included, on purpose --
+% it's your own note, kept as a traceable source), followed by my drafted
+% paragraph for that block.
+
+\subsection{Background}
+
+\begin{quote}\small\itshape
+\begin{itemize}
+\item EHR Foundation Model (FM) arises nowaday, with potential to be assistive clinical decision tool
+\item they often use standarized clinical vocabularies such as ICD, RXNORM, SNOMED, LONIC
+\item standarized clinical vocabularies /ontologies DAG, are used to normalize clinical naming, and improve the interoperability
+\item SNOMED CT is a DAG, comprehensive 400k + concepts (covering very broad clinical domains, diorders, medication, morphologies etc...) and semantically rich (composed by 100+ relationship types, have their own way to compose machine readable semantic expression), mappable to other clincial terminologies.
+\end{itemize}
+\end{quote}
 
 Electronic health record (EHR) foundation models (FMs) have recently emerged as
 promising assistive tools for clinical decision support \citeneeded{recent EHR
@@ -23,6 +35,22 @@ relationship types that let each concept be expressed as a machine-readable
 logical composition of others, and it is mappable to most other major
 clinical terminologies \citeneeded{SNOMED International concept model /
 release statistics}.
+
+\subsection{Gap}
+
+\begin{quote}\small\itshape
+\begin{itemize}
+\item training FM needs either large amount of patient data (but patient data is difficult to get)
+\item or need adequate size of clinical vocabularies. (but medical vocabularies are large size)
+\item Current methods are:
+\item (cite) LLM byte-pair on categorical medical concept: data-driven, no semantic preservation, highly dependant to data quality and cpncept orders.
+\item (cite) keep highest prevalent top k concepts, highest entropy contribution top k concepts: data-driven, loss of considerable clinical information.
+\item (cite) troncate/reduce leaf concepts to their parents concepts: data-driven, loss of medical granularity.
+\item (cite) or just keep all concepts as it is, if we have lots of patient data. but since concept usage distribution are usually long tail, many rare concepts can not be learnt in a proper way.
+\item (cite) learnable embedding space codebook: loss of controillability and interpretability
+\item all of above mentioned methods are ignoring the semantic richness of clinical vocabulary DAG when try to deal with vocabulary size.
+\end{itemize}
+\end{quote}
 
 Training an EHR FM directly on top of such a vocabulary creates a tension
 between two resources that are each expensive on their own. Learning a
@@ -59,11 +87,25 @@ embedding-space codebooks (e.g.\ vector-quantization-style tokenizers) can
 compress the vocabulary without hand-designed rules, but at the cost of
 controllability and interpretability: the resulting tokens no longer
 correspond to identifiable, auditable clinical concepts \citeneeded{learnable
-codebook / VQ-style tokenization}. \doubt{Is the sharpest way to state the gap
-"none of these use the DAG's semantic structure at all," or the stronger claim
-"none of these produce a token set that is both semantically motivated
-\emph{and} inspectable/controllable"? The second framing lines up more
-directly with the contribution list below -- your call on which to lead with.}
+codebook / VQ-style tokenization}. None of these families of methods make
+direct use of the semantic richness already encoded in the vocabulary's own
+DAG structure when reducing its size. \doubt{Is the sharpest way to state the
+gap "none of these use the DAG structure itself," or the stronger claim "none
+of these produce a token set that is both semantically motivated \emph{and}
+inspectable/controllable"? The second framing lines up more directly with the
+contribution list below -- your call on which to lead with.}
+
+\subsection{Our method and contribution}
+
+\begin{quote}\small\itshape
+\begin{itemize}
+\item applicable to DAG knowledge graph.
+\item tokens selection: Represent concepts by smaller vocabulary size using greedy token selection approach
+\item way to tokenize: Represent concepts by a tree/subgraph preserving the structure of the concepts the semantic value.
+\item By apply to SNOMED CT concepts used in our local institut real data, we show our method can control how we tokenize and with what we tokenize (controllability and interpretability)
+\item (maybe) if any mapping inter-ontology exist, we can use concepts in 1 ontology to represent/tokenize concepts in the other ontologies (interoperability)
+\end{itemize}
+\end{quote}
 
 We propose a token-selection and tokenization method that operates directly
 on a concept DAG such as SNOMED~CT. First, we select a small set of tokens
@@ -82,10 +124,8 @@ to the SNOMED~CT concepts mapped by our institution's semantician team, we
 show that, unlike the alternatives above, the resulting tokenization is
 directly controllable and interpretable: for any given concept, a domain
 expert can inspect exactly which relationships were followed to reach which
-token. \notetoself{Your outline's contribution item 5 -- "if any mapping
-inter-ontology exists, we can use concepts in one ontology to tokenize
-concepts in another" -- is repeated almost verbatim in the Future Work section
-(item 1). I left it out of this paragraph to avoid stating it twice; see
-Section~\ref{sec:future-work} for the one place I kept it, and tell me if you'd
-rather list it here instead (e.g. because you already have a toy
-cross-ontology demonstration) and drop it from Future Work.}
+token.
+
+\notetoself{Per your feedback: the inter-ontology point (last bullet above)
+is not being claimed as a contribution of this paper -- it's mentioned only
+in Future Work (Section~\ref{sec:future-work}) now, not developed here.}

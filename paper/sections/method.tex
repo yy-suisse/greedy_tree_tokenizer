@@ -4,15 +4,11 @@
 % NOTE: this section leans heavily on your existing PDF draft
 % ("Tokenizer_semantic_coverage"), which already contains a near-final
 % write-up of the coverage score, the context-tree tokenization, and the
-% lazy-greedy algorithm with its complexity analysis -- I reused that
-% material almost as-is (it's your own prior writing) and only extended it
-% where the code implements something the PDF doesn't document yet. The
-% single biggest such gap: your PDF's Eq. (1) has NO lambda term, but
-% tokenizer.py's build_coverage_transition / _candidate_delta_core both
-% implement a lambda distance-penalty, and your Results outline (section 4)
-% is entirely about analyzing lambda's effect. I added the lambda-extended
-% recursion below, transcribed from the code's own docstring -- please
-% double check it against your intent.
+% lazy-greedy algorithm with its complexity analysis -- reused almost as-is
+% (it's your own prior writing). Extended with the lambda term (confirmed
+% by you as your own addition, not in the PDF) and restructured per your
+% feedback: exact_rate moved to Discriminative power, eigenvector centrality
+% removed, expert-acceptability item 5 now firm (not "maybe").
 
 \subsection{Candidate pool and depth budget}
 \label{sec:method:candidates}
@@ -28,7 +24,8 @@ V_D = M \cup \{\, u \in V : u \text{ is reachable from some } c \in M
 \text{ by at most } D \text{ relationships} \,\},
 \]
 obtained in practice as the union of the $D$-hop ego-graph (following
-outgoing edges) around every mapped concept. Token selection
+outgoing edges) around every mapped concept -- see
+Section~\ref{sec:background} for its current size. Token selection
 (Section~\ref{sec:method:selection}) only ever considers $t \in V_D$: a
 candidate that no mapped concept can reach within $D$ hops has zero possible
 contribution to the objective below and is never evaluated.
@@ -38,8 +35,15 @@ radius, the tree depth, and the selection horizon are tied together rather
 than treated as three independent hyperparameters. Is that coupling
 intentional/load-bearing, or just a current implementation convenience?}
 
-\subsection{Semantic coverage and greedy token selection}
+\subsection{Greedy token selection}
 \label{sec:method:selection}
+
+\begin{quote}\small\itshape
+\begin{itemize}
+\item Greedy token selection based on semantic coverage with lambda as distance penality (add illustration)
+\end{itemize}
+\end{quote}
+
 For $u \in V$, $T \subseteq V$ and horizon $h \in \{0, \dots, D\}$, let
 $S_h(u, T) \in [0, 1]$ denote how well $u$ is covered by $T$ when at most $h$
 further relationships may be traversed. The base case is
@@ -47,7 +51,10 @@ further relationships may be traversed. The base case is
 S_0(u, T) = \mathbf{1}[u \in T],
 \]
 and, extending the recursion with a per-hop distance penalty $\lambda \in
-(0, 1]$,
+(0, 1]$ \notetoself{confirmed by you: this $\lambda$ term is your own
+addition on top of the original PDF draft, which only has the
+undiscounted ($\lambda{=}1$) version of Eq.~\eqref{eq:coverage} -- well
+spotted catching that gap.},
 \begin{equation}
 S_h(u, T) =
 \begin{cases}
@@ -100,8 +107,15 @@ figure/diagram).}
 \label{fig:coverage-illustration}
 \end{figure}
 
-\subsection{Tokenization via context trees}
+\subsection{Tokenizer}
 \label{sec:method:tokenizer}
+
+\begin{quote}\small\itshape
+\begin{itemize}
+\item tokenizer (say why flatten is not good, add illustration, resulting context trees)
+\end{itemize}
+\end{quote}
+
 Once a token set $T$ is fixed, a mapped concept $c \in M$ is not represented
 by the flat, unordered set of tokens reachable from it. A flat representation
 throws away exactly the information that non-\texttt{IS\_A} relationships
@@ -144,63 +158,72 @@ figure).}
 
 \subsection{Evaluation metrics}
 \label{sec:method:metrics}
+
+\begin{quote}\small\itshape
+\begin{itemize}
+\item metrics used and how they are computed,
+\item 3.1: Efficientcy: conciseness, tree\_complexity
+\item 3.2: distance\_score: Fidelity
+\item 3.3: discrimitive power: uniqueness\_entropy, unique\_rate
+\item 3.4: semantic content: semantic\_coverage, uncovered\_rate, unk\_branche\_rate
+\item and also say either they are hogher or lower better (interpretation)
+\end{itemize}
+\end{quote}
+
 Every metric below is computed once the context trees for all of $M$ have
 been built against a fixed $T$; they evaluate the \emph{realized}
 representation, as opposed to $F_D(T)$, which is the objective used to
 \emph{select} $T$ in the first place (Section~\ref{sec:method:selection}).
-We group them by what aspect of the tokenization they capture:
 
-\textbf{Efficiency} -- how compact the representation is. \emph{Conciseness}
-is the mean number of token leaves per concept's tree; \emph{tree
-complexity} is the mean number of contexts (root plus subcontexts) per tree.
-Lower is better for both: a concept represented by fewer tokens and fewer
-subcontexts is cheaper to encode and easier to inspect.
+\textbf{Efficiency.} \emph{Conciseness} is the mean number of token leaves
+per concept's tree; \emph{tree complexity} is the mean number of contexts
+(root plus subcontexts) per tree. Lower is better for both: a concept
+represented by fewer tokens and fewer subcontexts is cheaper to encode and
+easier to inspect.
 
-\textbf{Fidelity} -- how close, on average, the tokens actually found are to
-the concept they represent. \emph{Distance score} converts the mean
-hop-distance at which tokens are found (uncovered branches counted at $D+1$
-rather than dropped) into a $(0,1]$ similarity, $1 - \overline{d}/(D+1)$.
-Higher is better: $1.0$ means every branch found a token immediately.
+\textbf{Fidelity.} \emph{Distance score} converts the mean hop-distance at
+which tokens are found (uncovered branches counted at $D+1$ rather than
+dropped) into a $(0,1]$ similarity, $1 - \overline{d}/(D+1)$. Higher is
+better: $1.0$ means every branch found a token immediately.
 
-\textbf{Discriminative power} -- how much the token vocabulary lets distinct
-concepts remain distinguishable from one another. \emph{Uniqueness entropy}
-is the normalized Shannon entropy of context-tree signatures across $M$: it
-is low when many concepts collapse onto the same tree shape (i.e.\ become
-indistinguishable under $T$) and high when signatures are spread out.
-\emph{Unique rate} is its per-concept decomposition -- the fraction of
-concepts whose own signature is not shared by any other concept. Higher is
-better for both.
-
-\textbf{Semantic content} -- how much of each concept's meaning was captured
-at all. \emph{Semantic coverage} is $F_D(T)$ itself, always reported at
-$\lambda = 1$ regardless of the $\lambda$ a candidate list was
-\emph{selected} under \doubt{confirm this is still the evaluation convention
-you want -- i.e. selection sweeps $\lambda$, but the reported metric always
-scores coverage at $\lambda=1$, so every method is compared on the same,
-undiscounted notion of "did it reach a token at all"}. \emph{Uncovered rate}
-is the fraction of concepts with \emph{zero} tokens anywhere in their tree --
-not represented at all. \emph{Unk rate} is the (weaker) fraction of concepts
-with \emph{at least one} uncovered branch somewhere in their tree, i.e.\
-partially unrepresented; by construction $\text{uncovered rate} \le
-\text{unk rate}$. Higher is better for semantic coverage; lower is better for
-both uncovered rate and unk rate.
-
-\notetoself{Your outline's four families (efficiency / fidelity /
-discriminative power / semantic content) account for 7 of the 8 metrics
-\texttt{eval.py} actually computes. The eighth, \emph{exact rate} -- the
+\textbf{Discriminative power.} \emph{Uniqueness entropy} is the normalized
+Shannon entropy of context-tree signatures across $M$: it is low when many
+concepts collapse onto the same tree shape (i.e.\ become indistinguishable
+under $T$) and high when signatures are spread out. \emph{Unique rate} is
+its per-concept decomposition -- the fraction of concepts whose own
+signature is not shared by any other concept. \emph{Exact rate} -- the
 fraction of mapped concepts that are themselves selected as a token, i.e.\ a
-0-hop / exact representation, higher is better -- isn't placed anywhere in
-your grouping. I've provisionally added it under Semantic content below,
-since a 0-hop match is the ceiling case of coverage, but it could just as
-naturally sit under Efficiency (the most concise possible representation) or
-get its own "direct representation" family -- your call.}
-Finally, \emph{exact rate} is the fraction of mapped concepts that are
-themselves selected as a token (a $0$-hop, exact representation); higher is
-better, and it is the ceiling case both of semantic coverage and of
-conciseness.
+$0$-hop, exact representation -- also belongs here per your feedback: a
+concept selected as its own token is maximally discriminable from every
+other concept (its signature cannot collide with anything). Higher is
+better for all three.
+
+\textbf{Semantic content.} \emph{Semantic coverage} is $F_D(T)$ itself,
+always reported at $\lambda = 1$ regardless of the $\lambda$ a candidate list
+was \emph{selected} under \doubt{confirm this is still the evaluation
+convention you want -- i.e. selection sweeps $\lambda$, but the reported
+metric always scores coverage at $\lambda=1$, so every method is compared on
+the same undiscounted notion of "did it reach a token at all"}.
+\emph{Uncovered rate} is the fraction of concepts with \emph{zero} tokens
+anywhere in their tree -- not represented at all. \emph{Unk rate} is the
+(weaker) fraction of concepts with \emph{at least one} uncovered branch
+somewhere in their tree, i.e.\ partially unrepresented; by construction
+$\text{uncovered rate} \le \text{unk rate}$. Higher is better for semantic
+coverage; lower is better for both uncovered rate and unk rate.
 
 \subsection{Baselines}
 \label{sec:method:baselines}
+
+\begin{quote}\small\itshape
+\begin{itemize}
+\item Chosen baseline for token selection (all DAG compatible)
+\item 4.0: k random
+\item 4.1: degree based: Most children, Highest degree, Highest degree with D <= 1
+\item 4.2: centrality based: Closeness centrality, Page rank, Personalized page rank
+\item 4.3 ours, and also our ablated version: Discrete set cover
+\end{itemize}
+\end{quote}
+
 All baselines below rank the full candidate pool $V_D$ once and are then
 truncated with the top-$k$ prefix of that ranking, exactly as the greedy
 method's own selection history is truncated -- so every method in
@@ -228,21 +251,10 @@ the one centrality baseline that is $M$-aware rather than purely structural
 \emph{Closeness centrality}: the (in-degree-oriented, Wasserman--Faust
 improved) reciprocal of the mean shortest-path distance \emph{to} a candidate
 from every node that can reach it \citeneeded{Freeman, closeness
-centrality}. \notetoself{Your outline's centrality-based list (item 4.2)
-names only these three. The code (\texttt{5.3.centrality\_baselines.ipynb},
-still referenced by the current \texttt{config.CandidateLists}) also computes
-a fourth: \emph{eigenvector centrality}. I've added it below -- drop it if
-you've decided against reporting it.} \emph{Eigenvector centrality}: rank by
-the left eigenvector of the adjacency matrix for its largest-modulus
-eigenvalue \citeneeded{eigenvector centrality / Bonacich}. \doubt{worth
-flagging to reviewers explicitly: the uniqueness guarantee for this measure
-(Perron--Frobenius) only holds on a strongly connected graph, which a DAG by
-definition is not -- on the earlier, smaller candidate subgraph this baseline
-was observed to collapse almost all candidates to a near-zero score, making
-its ranking past the first few thousand candidates close to an arbitrary
-tie-break. Please re-verify (and, if still true, quantify) this on the
-current $D{=}9$ candidate pool before we decide how much weight to give this
-baseline in Section~\ref{sec:results}.}
+centrality}. \notetoself{Per your feedback, eigenvector centrality has been
+removed from this baseline list entirely -- it doesn't work on a DAG
+(its Perron--Frobenius uniqueness guarantee requires strong connectivity),
+so it is no longer part of this draft even as a flagged/caveated option.}
 
 \textbf{Ours, and its hard-greedy ablation.} Our method is the lazy-greedy
 maximizer of $F_D$ from Section~\ref{sec:method:selection}. As an ablation,
@@ -255,11 +267,27 @@ candidate pool. Comparing the two isolates what the soft, distance-aware
 formulation of Eq.~\eqref{eq:coverage} buys over textbook hard-coverage
 greedy, rather than comparing against a strawman.
 
-\notetoself{Your outline's item 5, "(maybe) evaluation of acceptability of
-the tokenized version vs. the original concept, by a clinical expert," is
-also referenced by Limitations item 3 ("no external validation on a clinical
-task") and Future Work item 2 ("external validation clinical task"). Right
-now the three don't agree on its status -- please pick one: either it's an
-expert-rating study that happens in this paper (belongs here, and Limitations
-item 3 needs softening), or it's genuinely future work (drop it from this
-Method list entirely and keep it only in Future Work).}
+\subsection{Expert acceptability evaluation}
+\label{sec:method:expert-eval}
+
+\begin{quote}\small\itshape
+\begin{itemize}
+\item evaluation of accaptability of tokenized version versus ooriginal concept, by clinical expert.
+\end{itemize}
+\end{quote}
+
+In addition to the automatic metrics above, we evaluate tokenization quality
+directly with a clinical expert: for a sample of mapped concepts, the expert
+is shown the original concept alongside its context-tree tokenization
+(Section~\ref{sec:method:tokenizer}) and rates whether the tokenized version
+still conveys an acceptable representation of the original concept's
+meaning. \notetoself{per your feedback, this is now firm in-paper content
+(no longer "(maybe)"), and it is intrinsic quality evaluation, distinct from
+the downstream/assistive-clinical-decision-task validation named in
+Section~\ref{sec:limitations} -- the two are not the same thing and this
+draft now keeps them separate.} \doubt{still need from you: how many
+concepts/experts, what rating scale (binary acceptable/not, Likert, free-text
+justification?), and whether inter-rater agreement is reported if there is
+more than one expert -- these design choices affect how this subsection
+should be written up and what Section~\ref{sec:results} needs to report
+alongside the automatic metrics.}

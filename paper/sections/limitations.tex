@@ -1,45 +1,74 @@
 \section{Limitations}
 \label{sec:limitations}
 
-% NOTE: polished your four bullet points into prose; item 1's original wording
-% ("which our tokenizer can not do shit") is toned down below to "the
-% tokenizer cannot compensate for this" -- flagging the rewrite explicitly in
-% case I changed the intended meaning, not just the register.
+% NOTE: item 3's meaning is now settled per your feedback -- it's about an
+% actual downstream assistive-clinical-decision task, NOT the expert
+% acceptability check (that's confirmed in-paper content, Section
+% method:expert-eval, and is a different thing).
 
-The method inherits several limitations directly from its design.
+\subsection{Graph structure constraints}
 
-\textbf{Graph structure constraints.} The context tree and the coverage
-score (Section~\ref{sec:method}) can only ever reflect the relationships that
-are actually encoded in the graph. Where SNOMED~CT's own definition of a
-concept is incomplete -- a relevant attribute simply not modeled as an
-outgoing edge -- the tokenizer cannot compensate for this: an under-specified
-concept will look under-specified in its context tree regardless of which
-token set $T$ is chosen. \doubt{"which our tokenizer can not do shit" in your
-original note -- I read this as "our method has no way to fix or detect
-this," which is what the sentence above says; flag if you meant something
-more specific, e.g.\ a particular class of missing relationships you've
-already run into.}
+\begin{quote}\small\itshape
+\begin{itemize}
+\item Graph structure constraints --> incomplete semntic definition, which our tokenizer can not do shit
+\end{itemize}
+\end{quote}
 
-\textbf{Transductive selection.} Token selection (Section~\ref{sec:method:selection})
-is transductive: it optimizes coverage for a fixed, known $M$, and a token
-set selected for one institution's mapped concepts is not guaranteed to
-transfer to a different mapped set without re-running selection.
+The context tree and the coverage score (Section~\ref{sec:method}) can only
+ever reflect the relationships that are actually encoded in the graph. Where
+SNOMED~CT's own definition of a concept is incomplete -- a relevant attribute
+simply not modeled as an outgoing edge -- the tokenizer cannot compensate for
+this: an under-specified concept will look under-specified in its context
+tree regardless of which token set $T$ is chosen. \doubt{I read "our
+tokenizer can not do shit" as "our method has no way to fix or detect this,"
+which is what the sentence above says -- flag if you meant something more
+specific, e.g.\ a particular class of missing relationships you've already
+run into.}
 
-\textbf{No external validation on a clinical task.} \doubt{This point is in
-tension with two other places in your outline: Method item 5 lists a
-"(maybe)" clinical-expert acceptability evaluation, and Future Work item 2
-lists "external validation clinical task" as planned. As drafted here I've
-kept this limitation as stated (no external validation exists in this
-paper), but if the phenotype-discovery / IA-cohort case study
-(\texttt{phenotype\_clustering.py}, still live in \texttt{src/} even though
-its driving notebooks sit in the now-obsolete \texttt{old\_notebooks/}) is
-meant to be part of this paper, this limitation needs to be softened or
-removed rather than stated as-is -- please confirm whether that case study is
-in scope.}
+\subsection{Transductive method}
 
-\textbf{Requires a DAG.} The tokenizer's core mechanism -- \texttt{IS\_A}
-transparency, non-\texttt{IS\_A} subcontexts, and the coverage recursion's
-reliance on well-defined finite hop distances -- assumes an acyclic graph. It
-does not extend as-is to a vocabulary with cycles, or to a general knowledge
-graph where the child/parent asymmetry of Section~\ref{sec:background} does
-not hold.
+\begin{quote}\small\itshape
+\begin{itemize}
+\item transductive method for toke selection
+\end{itemize}
+\end{quote}
+
+Token selection (Section~\ref{sec:method:selection}) is transductive: it
+optimizes coverage for a fixed, known $M$, and a token set selected for one
+institution's mapped concepts is not guaranteed to transfer to a different
+mapped set without re-running selection.
+
+\subsection{No external validation on a clinical task}
+
+\begin{quote}\small\itshape
+\begin{itemize}
+\item No external validation on clinical task
+\end{itemize}
+\end{quote}
+
+This paper evaluates tokenization quality intrinsically (the metrics of
+Section~\ref{sec:method:metrics}) and, directly, via clinical-expert
+acceptability ratings of the tokenized representation against the original
+concept (Section~\ref{sec:method:expert-eval}). What it does not do is
+validate the tokenization on an actual downstream, assistive clinical
+decision task -- i.e.\ show that a model trained on this reduced vocabulary
+performs a real clinical decision-support function (diagnosis support, risk
+prediction, etc.) at least as well as one trained on an alternative
+vocabulary. \notetoself{per your feedback, this is a distinct claim from the
+expert acceptability evaluation in Method -- that one is about representation
+fidelity judged by an expert, this one is about end-task clinical utility,
+and only the first is in scope for this paper.}
+
+\subsection{Requires a DAG}
+
+\begin{quote}\small\itshape
+\begin{itemize}
+\item Not working on Non-DAG
+\end{itemize}
+\end{quote}
+
+The tokenizer's core mechanism -- \texttt{IS\_A} transparency, non-\texttt{IS\_A}
+subcontexts, and the coverage recursion's reliance on well-defined finite hop
+distances -- assumes an acyclic graph. It does not extend as-is to a
+vocabulary with cycles, or to a general knowledge graph where the
+child/parent asymmetry of Section~\ref{sec:background} does not hold.

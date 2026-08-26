@@ -115,16 +115,36 @@ this pass). `phenotype_clustering.py` is a separate downstream consumer
 (clustering on tokenized features for an aneurysm/"IA" patient cohort) that
 does not feed back into the tokenizer itself.
 
-## Open questions for the author
-1. Is the phenotype-discovery / IA-cohort case study (`phenotype_clustering.py`,
-   `config.IACohort`/`IAFeatures`/`IAResults`) in scope for this paper, given
-   it's live in `src/` but its driving notebooks are in the now-obsolete
-   `old_notebooks/`? (Also flagged in `limitations.tex` / `discussion.tex`.)
-2. Is the shared single-`D` design (candidate radius = tree depth = coverage
+## Resolved by the author (2026-08-26 feedback round)
+- `phenotype_clustering.py` / the IA-cohort case study is **out of scope**
+  for this paper — removed from `discussion.tex` / `limitations.tex`.
+- `eigenvector_centrality` is **excluded from the paper** (doesn't work on a
+  DAG) — removed from `method.tex`'s baseline list, even as a caveated
+  option. It remains a real baseline in `config.py`/the notebooks; this is
+  a paper-scope decision, not a code change.
+- No `D`-sweep planned for this paper (contrary to what the author's own PDF
+  §7 sketches) — not carried into `results.tex`.
+- Candidate-pool size under the current `max_dist_candidate = 9` is
+  confirmed: **75,964 concepts, across 2 weakly connected components**
+  (barely larger than the old `D=3` figure of ~75,634 — the ego-graph around
+  `M` saturates fast).
+- `exact_rate` placed under **Discriminative power** (not Semantic content).
+- The clinical-expert acceptability check (`method.tex`,
+  §Expert acceptability evaluation) is confirmed in-scope for this paper and
+  is intrinsic quality evaluation — distinct from the downstream/assistive
+  clinical-decision-task validation named in `limitations.tex`, which
+  remains a genuine limitation not addressed here.
+
+## Still open
+1. Is the shared single-`D` design (candidate radius = tree depth = coverage
    horizon) intentional/load-bearing, or an implementation convenience worth
    relaxing in a future revision?
-3. Current candidate-pool size and relation-type count under `D=9` — needed
-   for `background.tex` / `results.tex`, not derivable from source alone
-   without a fresh run of `1.graph_prepare.ipynb`.
-4. Definition of "token reuse rate" (mentioned in `main.tex`'s Results
+2. Exact relation-type count in the current SNOMED release/extension —
+   needed for `background.tex`, not derivable from source alone.
+3. Definition of "token reuse rate" (mentioned in `main.tex`'s Results
    outline as "need to be implemented") — not yet in `eval.py`.
+4. Design of the expert-acceptability study (`method.tex`
+   §Expert acceptability evaluation): sample size, number of raters, rating
+   scale, inter-rater agreement reporting.
+5. Whether the 2 weakly-connected-components split in the candidate pool is
+   meaningful (e.g. two disjoint clinical domains in `M`) or incidental.
