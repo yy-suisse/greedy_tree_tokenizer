@@ -1,0 +1,49 @@
+\section{Future Work}
+\label{sec:future-work}
+
+% NOTE: kept your two points, and pulled forward the three extensions your
+% own PDF already sketches mathematically in its "Perspectives" section --
+% none of which currently appear in main.tex's Future Work outline.
+
+Two directions follow directly from the limitations above. First, where a
+mapping between SNOMED~CT and another ontology exists, the same selection and
+tokenization mechanism could be applied across ontologies: tokens selected in
+one vocabulary could represent concepts from another, extending the
+interoperability argument from Section~\ref{sec:introduction} to the token
+level itself. \notetoself{This is the same point listed as "(maybe)"
+contribution item 5 in the Introduction -- see the note there; keep it in
+only one of the two places.} Second, addressing the transductive-selection
+limitation directly would mean validating the tokenization on a downstream
+clinical task external to the intrinsic metrics of Section~\ref{sec:method:metrics}.
+
+\notetoself{Your existing PDF draft's own "Perspectives" section (Section~8)
+already sketches three further extensions, with citations, that don't appear
+anywhere in main.tex's Future Work outline. Pulling them in here since they
+seem like genuine future-work material rather than something to drop:}
+
+\textbf{Redundancy and token swaps.} The greedy algorithm of
+Section~\ref{sec:method:selection} never removes a token once selected. A
+token can become nearly redundant once later tokens end up covering the same
+concepts it was originally selected for; a marginal-\emph{loss}-based pass
+could identify and swap out such tokens after the fact.
+
+\textbf{Primitive vs.\ fully-defined concepts.} Expanding a concept via its
+outgoing relationships (Section~\ref{sec:method:tokenizer}) implicitly
+assumes that doing so is lossless. For primitive SNOMED~CT concepts -- those
+not fully defined by their stated relationships -- this may not hold. A
+reconstructibility factor $\alpha(u) \in [0,1]$ ($\alpha(u)=1$ for fully
+defined concepts, $\alpha(u)=\eta < 1$ for primitive ones) could discount the
+propagated coverage of Eq.~\eqref{eq:coverage} accordingly, while still
+treating a primitive concept selected \emph{as its own token} as fully
+covered (coverage $1$), since it is then preserved atomically rather than
+reconstructed from its relationships.
+
+\textbf{Combining with an ontology-similarity measure.} An independently
+developed ontology-based similarity measure \citeneeded{ontology-based
+similarity measure referenced in your PDF's Section 8 / reference [6]} could
+evaluate how well semantic neighborhoods are preserved and how severe token
+collisions are, and could potentially be folded into the marginal-gain
+computation itself, e.g.\ as a facility-location-style term -- provided the
+submodularity and monotonicity properties the greedy guarantee depends on
+(Section~\ref{sec:method:selection}) are re-verified for the modified
+objective.

@@ -1,0 +1,64 @@
+\section{Background}
+\label{sec:background}
+
+% NOTE: definitional content only. The concrete graph statistics your outline
+% asks for (candidate-pool size, exact relation-type count) live in
+% IMPLEMENTATION.md / BASELINE_METHODS.md, which you flagged as an obsolete
+% pre-refactor version (computed back when config.TokenizerParam.max_dist_candidate
+% was 3; it is now 9). I did not reuse any number from those files -- they are
+% marked \needresults below instead. Please re-run 1.graph_prepare.ipynb (or point
+% me at the current combined_subgraphs.gpickle) so this section can quote live figures.
+
+\subsection{Directed acyclic graphs}
+A directed acyclic graph (DAG) is a directed graph $G = (V, E)$ that contains
+no directed cycle: there is no sequence of edges that both starts and ends at
+the same vertex while always following edge direction. Equivalently, $G$
+admits at least one topological ordering of $V$ in which every edge points
+from an earlier to a later vertex in the ordering. Acyclicity is what makes
+"child" and "parent" well defined for any two vertices connected by a
+directed path: a vertex reached by following edges forward is strictly more
+specific than, and can never be an ancestor of, the vertex it was reached
+from.
+
+\subsection{SNOMED CT as a semantic DAG}
+SNOMED~CT is one such graph. It comprises $|V| \approx 400{,}000$ concepts
+\citeneeded{SNOMED International release statistics} spanning disorders,
+procedures, findings, body structures and substances, connected by
+\needresults{exact number of distinct relationship types in the current
+release / extension in use} relationship types. Two properties of this graph
+matter for the rest of the paper.
+
+First, it is acyclic. \needresults{confirm this holds for the current
+working subgraph (\texttt{combined\_subgraphs}, built at
+\texttt{max\_dist\_candidate = 9}) the same way it held for the earlier,
+smaller $D=3$ subgraph -- the tokenizer's own \texttt{ISA}-transparency rule
+(Section~\ref{sec:method}) and several of the baselines
+(Section~\ref{sec:method}) implicitly rely on well-defined, finite hop
+distances, which acyclicity guarantees.}
+
+Second, its edges carry semantic value beyond hierarchy. One relationship
+type, \texttt{IS\_A}, encodes generalization/specialization -- the
+parent/child relation defined above. Every other relationship type (for
+example \emph{finding site}, \emph{associated morphology}, \emph{has active
+ingredient}) attaches an attribute to a concept by pointing to another
+concept, rather than by storing a value locally. As a consequence, a
+concept's meaning is not contained in the concept itself but constructed from
+its position and connections inside the DAG -- two concepts that look
+unrelated by name can share most of their meaning if they are reached through
+the same relationships to the same targets, and conversely two occurrences of
+the same relationship type from the same concept can point to entirely
+different, non-interchangeable aspects of it. This is exactly the structure
+our method is built to exploit: Section~\ref{sec:method} defines a coverage
+score and a tree representation that treat \texttt{IS\_A} edges and non-\texttt{IS\_A}
+edges differently for precisely this reason.
+
+\subsection{Working vocabulary and notation}
+Let $M \subseteq V$ denote the subset of SNOMED~CT concepts mapped by our
+institution's semantician team to locally used clinical concepts
+($|M| \approx 40{,}000$), and let $T \subseteq V$, $|T| = k$, denote a
+\emph{token set}: a small subset of concepts chosen to represent every
+concept in $M$ (Section~\ref{sec:method}). Candidate tokens are not drawn
+from the whole of $V$ but from a bounded neighborhood of $M$; the exact
+candidate pool and how it is obtained is described together with the method
+in Section~\ref{sec:method}, since the same depth budget $D$ that defines the
+candidate pool also defines the tokenization horizon.

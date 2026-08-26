@@ -1,5 +1,24 @@
 \documentclass{article}
 \usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+% ------------------------------------------------------------------
+% Visual markers for the draft. Every place I was unsure about a
+% claim, or where a citation is needed, is wrapped in one of these so
+% it is easy to spot (and to grep for) while the draft is still
+% moving. Remove/redefine as no-ops once the paper is closer to final.
+%   \citeneeded{...}  -> red   [CITE: ...]
+%   \doubt{...}       -> blue  [DOUBT: ...]
+%   \notetoself{...}  -> teal  [NOTE: ...]      (structural remarks, not content gaps)
+%   \needresults{...} -> orange [RESULTS NEEDED: ...]
+% ------------------------------------------------------------------
+\newcommand{\citeneeded}[1]{\textcolor{red}{\textbf{[CITE: #1]}}}
+\newcommand{\doubt}[1]{\textcolor{blue}{\textbf{[DOUBT: #1]}}}
+\newcommand{\notetoself}[1]{\textcolor{teal}{\textit{[NOTE: #1]}}}
+\newcommand{\needresults}[1]{\textcolor{orange}{\textbf{[RESULTS NEEDED: #1]}}}
 
 \title{DAG tokenizer using greedy sem cov}
 \author{yuanyuan.zheng }
@@ -7,9 +26,108 @@
 
 \begin{document}
 
-
 \maketitle
 
+% ==================================================================
+% ORIGINAL OUTLINE NOTES -- yy, Aug 2026
+% Kept verbatim, unedited, and non-rendered (wrapped in \iffalse/\fi)
+% so nothing you wrote is touched or lost. The actual drafted paper
+% below is assembled from sections/*.tex, written to follow this
+% outline as closely as possible -- see the chat message alongside
+% this file for the specific points I flagged as missing, duplicated,
+% or in need of a fresh number from you.
+% ==================================================================
+\iffalse
+
 \section{Introduction}
-blabla
+[background]
+1. EHR Foundation Model (FM) arises nowaday, with potential to be assistive clinical decision tool
+2. they often use standarized clinical vocabularies such as ICD, RXNORM, SNOMED, LONIC
+3. standarized clinical vocabularies /ontologies DAG, are used to normalize clinical naming, and improve the interoperability
+4. SNOMED CT is a DAG, comprehensive 400k + concepts (covering very broad clinical domains, diorders, medication, morphologies etc...) and semantically rich (composed by 100+ relationship types, have their own way to compose machine readable semantic expression), mappable to other clincial terminologies.
+
+[Gap]
+1.1 training FM needs either large amount of patient data (but patient data is difficult to get)
+1.2 or need adequate size of clinical vocabularies. (but medical vocabularies are large size)
+
+2. Current methods are:
+2.1: (cite) LLM byte-pair on categorical medical concept: data-driven, no semantic preservation, highly dependant to data quality and cpncept orders.
+2.2: (cite) keep highest prevalent top k concepts, highest entropy contribution top k concepts: data-driven, loss of considerable clinical information.
+2.3: (cite) troncate/reduce leaf concepts to their parents concepts: data-driven, loss of medical granularity.
+2.4: (cite) or just keep all concepts as it is, if we have lots of patient data. but since concept usage distribution are usually long tail, many rare concepts can not be learnt in a proper way.
+2.5: (cite) learnable embedding space codebook: loss of controillability and interpretability
+all of above mentioned methods are ignoring the semantic richness of clinical vocabulary DAG when try to deal with vocabulary size.
+
+[Our method and contribution:]
+We purpose a method:
+1. applicable to DAG knowledge graph.
+2. tokens selection: Represent concepts by smaller vocabulary size using greedy token selection approach
+3. way to tokenize: Represent concepts by a tree/subgraph preserving the structure of the concepts the semantic value.
+4. By apply to SNOMED CT concepts used in our local institut real data, we show our method can control how we tokenize and with what we tokenize (controllability and interpretability)
+5. (maybe) if any mapping inter-ontology exist, we can use concepts in 1 ontology to represent/tokenize concepts in the other ontologies (interoperability)
+
+
+\section{background}
+The following notions need to be explained:
+1. DAG (directed acycclic graph)
+2. SNOMED CT:
+2.0 Number of concepts, number of distinct relations,
+2.1 DAG nature
+2.2 semantic value from relation types and concept connectivities (concepts are defined by the others in the DAG)
+
+\section{Method}
+1. Greedy token selection based on semantic coverage with lambda as distance penality (add illustration)
+2. tokenizer (say why flatten is not good, add illustration, resulting context trees)
+3. metrics used and how they are computed,
+3.1: Efficientcy: conciseness, tree_complexity
+3.2: distance_score: Fidelity
+3.3: discrimitive power: uniqueness_entropy, unique_rate
+3.4: semantic content: semantic_coverage, uncovered_rate, unk_branche_rate
+and also say either they are hogher or lower better (interpretation)
+4. Chosen baseline for token selection (all DAG compatible)
+4.0: k random
+4.1: degree based: Most childrenHighest degreeHighest degree with D <= 1
+4.2: centrality based: Closeness centralityPage rankPersonalized page rank
+4.3 ours, and also our ablated version: Discrete set cover
+5. (maybe) evaluation of accaptability of tokenized version versus ooriginal concept, by clinical expert.
+
+\section{Result}
+0. use all concepts SNOMED used and mapped by our semantician in HUGData
+1. how to get subgraph and narrow down the candidate pool, then give the number 400k -> 70k
+2. General trend: k VS all metrics evolution
+3. analysis of metrics among different families of candidate selection, and the characteristics:
+- degree based: may select semantic overlapped concept, less semantic preservation, redundant selection in same branch(?)
+- centrality based: random walk based, less semantic preservation (?), overlapped semantics(?), maybe less efficiency (?)
+- ours
+- in this part, for each family, i will plot the upper envelop curve of metric performance
+4. analysis of metrics between our methods, with respect to impact of lamda
+- extreme case: lam = 0.0: force to choose the mapped concepts.
+- trade off lambda vs diff metrics.
+- token reuse rate (need to be implemented)
+- point out: best config depends on personal choice.
+
+\section{Discussion}
+Empty for the moment
+\section{limitation}
+1. Graph structure constraints --> incomplete semntic definition, which our tokenizer can not do shit
+2. transductive method for toke selection
+3. No external validation on clinical task
+4. Not working on Non-DAG
+\section{future work:}
+1. if mppinf inter ontology snomed and others, can show case that we can tokenize concepts in 1 ontology with other concept tokens in other ontology
+2. external validation clinical task
+
+\fi
+% ==================================================================
+% END OF ORIGINAL OUTLINE NOTES
+% ==================================================================
+
+\input{sections/introduction}
+\input{sections/background}
+\input{sections/method}
+\input{sections/results}
+\input{sections/discussion}
+\input{sections/limitations}
+\input{sections/future_work}
+
 \end{document}

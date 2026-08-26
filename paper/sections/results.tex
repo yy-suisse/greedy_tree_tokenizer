@@ -1,0 +1,129 @@
+\section{Results}
+\label{sec:results}
+
+% NOTE: no fresh numbers exist yet (you're feeding those in later), and I
+% deliberately did NOT reuse any figure from IMPLEMENTATION.md's "Analysis of
+% tendency" section, since you flagged that file as an obsolete pre-D=9
+% version. What follows is the narrative scaffold + placeholders your outline
+% asks for, plus one thing I could derive directly from the math/code rather
+% than from a specific run (the lambda=0 remark) -- that part I *am*
+% confident in, independent of which run's numbers eventually go in.
+
+\subsection{Data and candidate pool}
+\label{sec:results:data}
+We use every SNOMED~CT concept mapped by our institution's semantician team
+in HUGData as the mapped set $M$. \notetoself{"HUGData" is used here exactly
+as it appears in your own \texttt{config.py} path names -- flag if this
+should instead be spelled out or anonymized for the paper.} Candidate tokens
+are restricted to the $D$-hop neighborhood of $M$ (Section~\ref{sec:method:candidates}),
+which narrows the pool from $|V| \approx 400{,}000$ SNOMED concepts to
+\needresults{current candidate-pool size under \texttt{max\_dist\_candidate = 9}}.
+\doubt{Your outline states this narrowing as "400k -> 70k," which matches the
+75{,}634-node figure from the old (obsolete) $D=3$ analysis -- not the current
+$D=9$ setting. A larger $D$ grows the ego-graph radius substantially, so the
+current pool is very likely much larger than 70k, possibly a large fraction of
+all of $V$. Please recompute this from a current run of
+\texttt{1.graph\_prepare.ipynb} before this number goes in the paper.}
+
+\subsection{General trend across $k$}
+\label{sec:results:trend}
+\needresults{plot(s) of each metric from Section~\ref{sec:method:metrics}
+against $k$, one line per candidate-selection method, at a fixed reporting
+$\lambda$ (presumably $\lambda = 1$, consistent with
+Section~\ref{sec:method:metrics}'s evaluation convention). Send me the
+underlying table/plot and I will write the narrative text around it (not
+just "Figure~X shows Y" but why the shape looks that way given the method).}
+
+\subsection{Comparison across baseline families}
+\label{sec:results:families}
+For each family from Section~\ref{sec:method:baselines} -- random,
+degree-based, centrality-based, and ours (with its hard-greedy ablation) --
+we plot the upper envelope of metric performance across the family's members,
+so that the comparison is against each family's \emph{best} member rather
+than diluted by its weaker ones.
+
+\needresults{once the sweep is in, this subsection should state, per family,
+which member forms the envelope at which $k$, and characterize \emph{why}.
+Below are hypotheses that follow from the method design in
+Section~\ref{sec:method}, phrased so they're easy to confirm or reject
+against the actual numbers rather than asserted as findings:}
+\begin{itemize}
+\item \doubt{Degree-based methods (especially \emph{most children}, which
+only looks at the \texttt{IS\_A} subgraph) may tend to select candidates
+whose neighborhoods overlap heavily -- e.g.\ several siblings under the same
+popular parent -- which would show up as lower discriminative-power metrics
+(uniqueness entropy / unique rate) than a coverage-aware method at the same
+$k$, even where raw semantic coverage is comparable. Worth checking directly
+rather than assuming.}
+\item \doubt{Centrality-based methods (PageRank family, closeness,
+eigenvector) rank by global random-walk or shortest-path structure rather
+than by $M$-specific coverage; personalized PageRank is the one exception
+(it restarts on $M$). This predicts personalized PageRank should track our
+method more closely than plain PageRank or closeness does -- again, a
+hypothesis to check, not yet a result.}
+\item \doubt{eigenvector centrality's DAG degeneracy (flagged in
+Section~\ref{sec:method:baselines}) predicts its envelope contribution should
+flatten out once $k$ passes whatever fraction of the pool actually carries
+non-negligible score -- if that's what the current run shows, it's worth
+stating explicitly as an explanation rather than leaving the flat curve
+unexplained.}
+\end{itemize}
+
+\subsection{Effect of the distance penalty \texorpdfstring{$\lambda$}{lambda}}
+\label{sec:results:lambda}
+\textbf{The degenerate case $\lambda = 0$.} This case can be characterized
+exactly from Eq.~\eqref{eq:coverage} itself, independent of any particular
+run: at $\lambda = 0$, every term of the "otherwise" branch vanishes, so
+$S_h(u,T) = S_0(u,T) = \mathbf 1[u \in T]$ for \emph{every} horizon $h$, not
+only $h=0$ -- coverage never propagates. Substituting into $F_D$,
+\[
+F_D(T)\big|_{\lambda=0} = \frac{1}{|M|}\sum_{c \in M} \mathbf 1[c \in T] = \text{exact\_rate}(M, T).
+\]
+In other words, selecting tokens at $\lambda = 0$ is not "coverage selection
+with a poor setting" but optimization of a \emph{different} objective
+entirely: how many mapped concepts the selector picked as tokens of
+themselves. Any candidate not itself in $M$ has zero marginal gain under this
+objective, so the selector has no signal to rank non-$M$ candidates at all,
+and its behavior past the point where $M$ is exhausted is effectively
+arbitrary tie-breaking. \notetoself{This derivation only needs
+Eq.~\eqref{eq:coverage} and the definition of exact\_rate
+(Section~\ref{sec:method:metrics}) -- it holds regardless of which run's
+numbers eventually back it up, so I'm confident stating it as a proposition
+rather than an empirical observation. \needresults{the actual $\lambda=0$
+curve, to show this pathology concretely rather than just algebraically.}}
+
+\textbf{Trade-off across $\lambda \in (0, 1]$.}
+\needresults{once available: how each metric family from
+Section~\ref{sec:method:metrics} moves as $\lambda$ increases from $0$ toward
+$1$. A reasonable prior, to be confirmed or corrected by the actual sweep, is
+that metrics tied directly to reaching \emph{any} token (semantic coverage,
+unk rate, uncovered rate) should improve monotonically as $\lambda \to 1$
+(evaluation is always at $\lambda=1$, so selection and evaluation become
+better aligned), while metrics sensitive to \emph{how far} a token was found
+(distance score, conciseness) may instead peak at some intermediate
+$\lambda$, since $\lambda=1$ selection has no preference for nearby tokens
+over merely reachable ones. \doubt{state as hypothesis or confirmed finding
+depending on what the fresh sweep shows -- do not carry over the specific
+numbers from the old, obsolete analysis even if the qualitative shape turns
+out to match.}}
+
+\textbf{Token reuse rate.} \doubt{your outline flags this metric as "need to
+be implemented" -- confirmed: \texttt{eval.py} does not currently compute
+anything under this name. This subsection stays a placeholder until that
+metric exists in code; happy to help define/implement it once you specify
+what "reuse" should mean here (e.g.\ how many distinct mapped concepts a
+single token ends up representing, across the whole context-tree
+population).}
+
+\textbf{Practical takeaway.} \doubt{your outline's closing point, "best
+config depends on personal choice" -- worth turning into one concrete
+sentence once the trade-off curves exist, e.g.\ naming which $\lambda$ range
+is a reasonable default and what a practitioner would trade away by moving
+off it in either direction.}
+
+\notetoself{Your PDF's own Section 7 ("Experiments") also proposes sweeping
+$D$ itself -- $D \in \{1,2,3,4,5\}$, measuring $|V_D|$ growth, reachable
+relationship counts, and degree distributions -- as a separate axis from $k$
+and $\lambda$. That sweep doesn't appear anywhere in this Results outline,
+which otherwise treats $D$ as fixed. Worth deciding explicitly whether a
+$D$-sensitivity analysis belongs in this paper's Results or is out of scope.}

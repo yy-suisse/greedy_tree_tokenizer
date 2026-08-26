@@ -1,0 +1,39 @@
+\section{Discussion}
+\label{sec:discussion}
+
+% NOTE: your outline says "Empty for the moment." Since you asked for a draft
+% of every part, here's a skeleton of what this section would need to argue,
+% written as guiding prompts rather than finished prose -- there's nothing to
+% synthesize yet without the actual numbers from Section~\ref{sec:results}.
+% Delete/replace freely once Results is filled in.
+
+\doubt{This section has no content yet -- your outline marks it "Empty for
+the moment," so nothing here is drafted as prose. Once Section~\ref{sec:results}
+has real numbers, this section should close the loop back to
+Section~\ref{sec:introduction}'s motivation. Suggested threads to pick up:}
+
+\begin{itemize}
+\item How much smaller a vocabulary does structured (greedy / degree /
+centrality) selection buy over the "keep everything" or "random" baselines
+from the Introduction's gap paragraph, at what cost in semantic coverage or
+distance score -- i.e.\ turn Section~\ref{sec:results:trend}/\ref{sec:results:families}
+into a direct answer to "does this solve the FM vocabulary-size problem
+better than the alternatives listed in the Introduction."
+\item What the $\lambda=0$ result (Section~\ref{sec:results:lambda}) implies
+practically: since $\lambda$ trades off raw coverage against proximity/conciseness,
+is there a principled way to pick $\lambda$ for a given downstream FM, or is
+it genuinely a design knob left to the practitioner (tying back to your
+Results outline's closing point)?
+\item Revisit the controllability/interpretability claim from
+Section~\ref{sec:introduction}'s contribution list: what does a reader
+actually get to inspect that a codebook-based tokenizer would not let them
+inspect? A short worked example (reusing the context-tree figure from
+Section~\ref{sec:method:tokenizer}) would make this concrete rather than
+asserted.
+\item \notetoself{If the phenotype-discovery case study
+(\texttt{phenotype\_clustering.py}, the IA/aneurysm cohort code currently
+live in \texttt{src/}) ends up in scope for this paper (see the Limitations
+note below), this is the natural place to discuss what that downstream task
+showed about the tokenization's practical usefulness, as opposed to only its
+intrinsic metrics.}
+\end{itemize}
