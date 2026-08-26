@@ -14,7 +14,11 @@ class BasicConfig:
 
 
 class TokenizerParam:
-    max_dist_candidate: int = 3
+    # token-search horizon D (IS_A generalization hops): covers 98.4% of concept depth in
+    # combined_subgraphs, capped below dag_longest_path_length (30, a handful of outlier
+    # chains) since depth 10+ hits are already generic SNOMED "grouper" categories
+    # (e.g. "Wound", "Inspection (procedure)") rather than clinically specific concepts
+    max_dist_candidate: int = 9
     Ks: np.ndarray = np.arange(500, 20000, 500)
     rnd_iters: np.ndarray = np.arange(0, 20, 1)
     exclude_cpt: list = ["138875005"]

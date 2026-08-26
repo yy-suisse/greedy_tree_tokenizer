@@ -17,15 +17,15 @@ def build_relations_graph(df_relations, col_src="src.id", col_dst="dst.id", col_
     return G
 
 
-def get_combined_subgraphs_from_nodes(G: nx.MultiDiGraph, nodes) -> dict:
+def get_combined_subgraphs_from_nodes(G: nx.MultiDiGraph, nodes, D) -> dict:
     """
     For each node, return the subgraph reachable by following outgoing edges up to
     max_distance hops. Nodes absent from G map to None.
     """
-    subgraphs = {node: nx.ego_graph(G, node, radius=None) if node in G else None for node in nodes}
+    subgraphs = {node: nx.ego_graph(G, node, radius=D) if node in G else None for node in nodes}
     return nx.compose_all([sg for sg in subgraphs.values() if sg is not None])
 
-def build_combined_subgraphs_and_id2label():
+def build_combined_subgraphs_and_id2label(D:int):
     df_relations = pl.read_parquet(f"{config.BasicConfig().relation_path}")
     df_mapped = pl.read_parquet(f"{config.BasicConfig().mapped_path}")
     mapped_ids = df_mapped["id"].to_list()
@@ -35,7 +35,7 @@ def build_combined_subgraphs_and_id2label():
 
     # build graph and combine
     whole_graph = graph_fct.build_relations_graph(df_relations, col_src="src.id", col_dst="dst.id", col_relation="relation")
-    combined_subgraphs = graph_fct.get_combined_subgraphs_from_nodes(whole_graph, mapped_ids)
+    combined_subgraphs = graph_fct.get_combined_subgraphs_from_nodes(whole_graph, mapped_ids, D)
     df_cpt = pl.read_parquet(config.BasicConfig().concept_path).select("id", "label")
     id_to_label = dict(zip(df_cpt["id"], df_cpt["label"]))
     
