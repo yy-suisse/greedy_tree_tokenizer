@@ -1,6 +1,5 @@
 \section{Introduction}
 \label{sec:introduction}
-
 % NOTE (this revision pass): rewritten for shorter sentences, explicit
 % transitions between paragraphs, and one new comparison table (Table
 % \ref{tab:related-approaches}) that replaces the old wall of "(cite) ..."
@@ -10,7 +9,6 @@
 % original main.tex bullet points verbatim.
 
 \subsection{Background}
-
 \begin{quote}\small\itshape
 \begin{itemize}
 \item EHR Foundation Model (FM) arises nowaday, with potential to be assistive clinical decision tool
@@ -19,35 +17,15 @@
 \item SNOMED CT is a DAG, comprehensive 400k + concepts (covering very broad clinical domains, diorders, medication, morphologies etc...) and semantically rich (composed by 100+ relationship types, have their own way to compose machine readable semantic expression), mappable to other clincial terminologies.
 \end{itemize}
 \end{quote}
+Electronic health records (EHRs) are the data generated from a patient's routine healthcare encounters. They capture diagnoses, prescriptions, surgical procedures, and other clinical events. Hospitals produce large volumes of EHR data daily, and with the growth of Artificial Intelligence (AI), this data has gained increasing value for training clinical decision support systems.
 
-Electronic health record (EHR) foundation models (FMs) are a recent class of
-models that learn from large amounts of patient history, with the goal of
-eventually assisting clinical decisions (e.g.\ Li et al., 2020, BEHRT; Yang
-et al., 2023, TransformEHR). To train on data from many hospitals at once,
-these models cannot rely on free text alone, because the same clinical fact
-is written differently in different places. Instead, they are trained on
-standardized clinical vocabularies -- ICD, RxNorm, SNOMED~CT, LOINC -- so
-that the same fact always gets the same code
-\citeneeded{standardized clinical vocabulary / interoperability reference}.
+Foundation models (FMs) are a recent class of AI models that learn from large amounts of patient history, with the goal of eventually assisting clinical decisions \citeneeded{self-spervised scoping,li2020behrt,yang2023transformehr}
 
-Several of these vocabularies are more than flat lists of codes: they are
-ontologies, organized as directed acyclic graphs (DAGs), in which a concept
-is connected to other concepts that define it. SNOMED~CT is the largest and
-most detailed example. It contains more than 400{,}000 concepts, covering
-disorders, procedures, medications, and more. Its concepts are connected by
-over 100 relationship types, so that each concept can be described as a
-machine-readable combination of others, and it can be mapped onto most other
-major clinical terminologies \citeneeded{SNOMED International concept model /
-release statistics}. \doubt{worth cross-checking against Su et al. (2025,
-MedTok)'s own count -- they report 303{,}325 SNOMED~CT concepts specifically
-(out of 617{,}490 codes total across 8 systems: ICD-10-CM 81{,}184, RxNorm
-81{,}151, ICD-10-PCS 61{,}644, NDC 54{,}560, ICD-9 18{,}365, CPT 10{,}602, ATC
-6{,}659) -- likely a different SNOMED edition/extension than your ~400k
-figure; worth a one-line reconciliation rather than leaving two different
-SNOMED counts unexplained in the same paper.}
+Much of the EHR data used to train FMs are clinical events, encoded using standardized medical vocabularies. Several such vocabularies are in wide use, including RxNorm, LOINC, SNOMED~CT, and ICD \citeneeded{standardized clinical vocabulary / interoperability reference}. They not only standardize clinical terminology but also enable interoperability across healthcare institutions.
+
+Several of these vocabularies are more than flat lists of codes: they are ontologies, organized as directed acyclic graphs (DAGs), in which each concept is connected to other concepts that define it. SNOMED CT is one such ontology, and currently the most comprehensive clinical terminology in use. It is maintained on a continuous basis, with a new International Edition released monthly, and contains more than 400{,}000 concepts, covering disorders, procedures, medications, and more. Its concepts are connected by over 100 relationship types and can be mapped onto most other major clinical terminologies \citeneeded{SNOMED International concept model / release statistics}.
 
 \subsection{Gap}
-
 \begin{quote}\small\itshape
 \begin{itemize}
 \item training FM needs either large amount of patient data (but patient data is difficult to get)
@@ -61,92 +39,33 @@ SNOMED counts unexplained in the same paper.}
 \item all of above mentioned methods are ignoring the semantic richness of clinical vocabulary DAG when try to deal with vocabulary size.
 \end{itemize}
 \end{quote}
+One of the major difficulties hindering EHR-pretrained FMs is the trade-off between the size of the clinical vocabulary and the amount of data available to learn a good representation for each concept in it. This trade-off follows directly from how these models are built. Modern EHR-trained FMs are almost all transformer-based sequence models that operate over tokens via self-attention \citeneeded{vaswani2017attention}, where each clinical concept is assigned its own learnable embedding that is refined only through the concept's own occurrences during training. Two concepts that are clinically similar but distinct in the vocabulary therefore start out, and often remain, unrelated in the model's representation space, since nothing in a standard transformer assumes they should behave alike unless the training data itself supplies enough evidence for the model to learn that they do, and generating that evidence requires a large amount of patient data, which is expensive and often hard to access. This mirrors the vocabulary-size/data-budget scaling relationship recently characterized for language models, where the vocabulary size that best matches a given training budget cannot be chosen independently of the amount of available data \citeneeded{tao2024scaling}. However, reducing the vocabulary to a size appropriate to the available training data is not trivial. Concept usage in real EHR data follows a long-tailed distribution \citeneeded{zhang2023longtailed}, so most concepts remain too rare to learn well regardless of how the vocabulary is chosen.
 
-This scale creates a problem for training an EHR FM. Learning a good
-representation for every one of these concepts takes a large amount of
-patient data, and such data is expensive and often hard to access
-\doubt{do you want to cite/quantify this, e.g. typical cohort sizes needed vs.
-available, or leave it as a general statement?}. Reducing the vocabulary to a
-size the available data can actually support does not avoid the problem
-either: concept usage in real EHR data follows a long tail, so most concepts
-are already too rare to learn well, no matter how the vocabulary is chosen.
-Su et al. (2025, MedTok) report the same pattern independently -- "low-frequency
-codes suffer from poor embeddings, reducing performance on underrepresented
-conditions" -- though, like us, without an actual frequency plot to back it
-up. \doubt{would strengthen this sentence a lot to show your own long-tail
-plot from the mapped-concept usage data, if you have it, rather than relying
-on two qualitative claims (yours and MedTok's) with no numbers behind either.}
-
-Several strategies already exist for shrinking the vocabulary, and
-Table~\ref{tab:related-approaches} summarizes them side by side. Byte-pair
-and other subword encodings merge concepts by co-occurrence statistics alone
-(Sennrich et al., 2016; Kudo \& Richardson, 2018, SentencePiece): they need
-no ontology, but the resulting vocabulary depends heavily on data quality and
-on the arbitrary order in which concepts appear. Keeping only the most
-frequent, or highest-information, concepts (top-$k$ pruning) drops a
-significant amount of clinically relevant information simply because it is
-rare \citeneeded{prevalence/entropy-based vocabulary pruning in clinical ML}.
-Rolling leaf concepts up to their ontology parent shrinks the vocabulary but
-loses clinical detail: a specific diagnosis collapses into a broader one
-\citeneeded{ontology roll-up / ICD truncation approach}. Keeping the full
-vocabulary avoids all of these losses, but only postpones the long-tail
-problem to the model, and only works if enough data is available
-\doubt{is there a citation you have in mind for this "no reduction" baseline,
-or is it meant as the trivial comparison point rather than a cited method?}.
-Finally, learnable embedding-space codebooks compress the vocabulary without
-any hand-written rules (Van den Oord et al., 2017), but the resulting tokens
-are then just indices into a learned space: they no longer correspond to
-concepts a person can recognize or check.
+Several strategies already exist for shrinking the vocabulary, and Table~\ref{tab:related-approaches} summarizes them side by side. Byte-pair and other subword encodings merge concepts by co-occurrence statistics alone \citeneeded{sennrich2016bpe, kudo2018sentencepiece}: they need no ontology, but the resulting vocabulary depends heavily on data quality and on the arbitrary order in which concepts appear. Keeping only the most frequent, or highest-information, concepts (top-$k$ pruning) drops a significant amount of clinically relevant information simply because it is rare \citeneeded{prevalence/entropy-based vocabulary pruning in clinical ML}. Rolling leaf concepts up to their ontology parent shrinks the vocabulary but loses clinical detail: a specific diagnosis collapses into a broader one \citeneeded{ontology roll-up / ICD truncation approach}. Keeping the full vocabulary avoids all of these losses, but only postpones the long-tail problem to the model, and only works if enough data is available \citeneeded{EHRSHOT?}. Finally, learnable embedding-space codebooks compress the vocabulary without any hand-written rules \citeneeded{su2025medtok, vandenoord2017vqvae}, but the resulting tokens are then just indices into a learned space: they no longer correspond to concepts a person can recognize or check.
 
 \begin{table}[h]
 \centering
 \small
 \begin{tabular}{p{2.7cm}p{1.8cm}p{2.0cm}p{4.5cm}}
 \toprule
-\textbf{Approach} & \textbf{Uses the ontology graph?} & \textbf{Tokens stay inspectable?} & \textbf{Main limitation} \\
+\textbf{Approach} & \textbf{Use of semantic} & \textbf{Controllability} & \textbf{Main limitation} \\
 \midrule
 Byte-pair / subword encoding & No & No (merges are statistical, not semantic) & Sensitive to data quality and concept order \\
 Frequency / entropy top-$k$ & No & Yes (kept items are still real concepts) & Drops clinically relevant but rare concepts \\
 Hierarchy truncation / roll-up & Partially (parent--child links only) & Yes, but coarser & Loses clinical granularity \\
 Full vocabulary (no reduction) & N/A & Yes & Long tail is never solved, just handed to the model \\
+Ontology-guided attention (e.g.\ GRAM) & Yes (via ancestor attention) & Partial (representation is learned, not a fixed token) & Improves rare-code learning but does not fix vocabulary size itself \\
 Learnable codebook (e.g.\ MedTok) & Yes (e.g.\ via a graph encoder) & No (opaque codebook indices) & Not human-auditable \\
 \textbf{Ours} & \textbf{Yes, directly} & \textbf{Yes, fully traceable} & (this paper's contribution) \\
 \bottomrule
 \end{tabular}
-\caption{How existing vocabulary-reduction strategies compare on the two
-properties this paper cares about most: whether they use the ontology's
-graph structure, and whether the resulting tokens can be inspected by a
-person.}
+\caption{How existing vocabulary-reduction and representation-learning strategies compare on the two properties this paper cares about most: whether they use the ontology's graph structure, and whether the resulting tokens can be inspected by a person.}
 \label{tab:related-approaches}
 \end{table}
 
-Table~\ref{tab:related-approaches} makes the gap concrete: no existing
-approach combines the two properties we want -- using the DAG's structure
-\emph{and} producing tokens a person can inspect. \doubt{Is the sharpest way
-to state the gap "none of these use the DAG structure itself," or the
-stronger claim "none of these produce a token set that is both semantically
-motivated \emph{and} inspectable/controllable"? The second framing lines up
-more directly with the contribution list below and with the table -- your
-call on which to lead with.}
-
-\textbf{Closest related work.} One method in the table needs a closer look,
-because it is the exception to "no graph structure": Su et al. (2025,
-MedTok) feed each code's neighborhood in a biomedical knowledge graph, along
-with its text description, into a multimodal encoder, then compress the
-result into a shared, learned codebook. So the real difference between our
-method and MedTok is not "uses the graph" versus "does not" -- it is
-\emph{how}. MedTok's tokens are indices into a continuous space learned by a
-neural network: there is no way to look at a token and say which
-relationships in the graph produced it. Our tokens, by contrast, are chosen
-directly from the graph by a deterministic rule (Section~\ref{sec:method}),
-and every token a concept resolves to comes with an explicit record of which
-relationships were followed to reach it. \doubt{this paragraph is my
-synthesis of the distinction, not something either paper states outright --
-worth double-checking it reads as fair to MedTok (it's a real, well-evaluated
-method, not a strawman) rather than as dismissive.}
+Table~\ref{tab:related-approaches} makes the gap concrete: no existing approach combines both properties to produce a token set that is both semantically motivated and inspectable/controllable.
 
 \subsection{Our method and contribution}
-
 \begin{quote}\small\itshape
 \begin{itemize}
 \item applicable to DAG knowledge graph.
@@ -156,28 +75,6 @@ method, not a strawman) rather than as dismissive.}
 \item (maybe) if any mapping inter-ontology exist, we can use concepts in 1 ontology to represent/tokenize concepts in the other ontologies (interoperability)
 \end{itemize}
 \end{quote}
+Building on this gap, we propose a method for selecting and building tokens directly on a concept DAG such as SNOMED~CT. It has two parts. First, we choose a small set of tokens with a greedy algorithm that maximizes how well they cover the meaning of the target concepts (Section~\ref{sec:method}). This lets us fix the vocabulary size in advance, instead of it falling out of a training run. Second, instead of representing a concept as an unordered set of the tokens it maps to, we represent it as a \emph{context tree}: a small subgraph that records which relationship led to each token.
 
-Building on this gap, we propose a method for selecting and building tokens
-directly on a concept DAG such as SNOMED~CT. It has two parts. First, we
-choose a small set of tokens with a greedy algorithm that maximizes how well
-they cover the meaning of the target concepts (Section~\ref{sec:method}).
-This lets us fix the vocabulary size in advance, instead of it falling out
-of a training run. Second, instead of representing a concept as an unordered
-set of the tokens it maps to, we represent it as a \emph{context tree}: a
-small subgraph that records which relationship led to each token. This
-matters in practice -- for example, a token for "kidney" and a token for
-"left" stay attached to the same anatomical-site branch, instead of being
-mixed up with an unrelated "right adrenal gland" branch found elsewhere in
-the same concept \doubt{this kidney/adrenal example is carried over from
-your existing PDF draft -- keep it, or swap in a real example from the
-HUG-mapped concepts once we have one handy?}.
-
-We apply this method to the SNOMED~CT concepts mapped by our institution's
-semantician team. The result, unlike every approach in
-Table~\ref{tab:related-approaches} including MedTok, is directly
-controllable and inspectable: for any concept, a domain expert can see
-exactly which relationships were used to reach which token.
-
-\notetoself{Per your feedback: the inter-ontology point (last bullet above)
-is not being claimed as a contribution of this paper -- it's mentioned only
-in Future Work (Section~\ref{sec:future-work}) now, not developed here.}
+We apply this method to the SNOMED CT concepts mapped by our institution's terminology team. The result, unlike every approach in Table~\ref{tab:related-approaches}, is directly controllable and inspectable: for any concept, a domain expert can see exactly which relationships were used to reach which token. Such a tokenizing method makes FM training more auditable.

@@ -12,13 +12,24 @@
 % or numbers changed from the previous version -- this is a detail/structure
 % pass grounded in the actual source, not new content.
 
-\subsection{Candidate pool and depth budget}
+\subsection{Token candidate pool construction}
 \label{sec:method:candidates}
+Token selection draws candidate tokens from concepts in SNOMED~CT, but not
+every concept in the graph is a useful candidate for representing the
+mapped concepts $M$. A concept many relationships away from every concept
+in $M$ contributes little even when reachable, and searching over it
+anyway only adds cost. A concept that is not reachable from $M$ at all by
+following relationships forward cannot represent it under our
+construction: since \texttt{IS\_A} edges point from specific to general and
+attribute edges point from a concept to its attribute value, following
+outgoing edges only ever reaches a generalization or an attribute value of
+a mapped concept, never something more specific than it. We therefore
+restrict candidates to a bounded neighborhood of $M$, the \emph{candidate
+pool}.
 
-A single depth budget $D$ plays three roles in this method, all controlled
-by one hyperparameter, \texttt{TokenizerParam.max\_dist\_candidate} in the
-implementation: it bounds how far a candidate token may be from the mapped
-concepts it can help represent, it bounds how deep a context tree
+A single depth budget $D$ plays three roles in this method: it bounds how
+far a candidate token may be from the mapped concepts it can help
+represent, it bounds how deep a context tree
 (Section~\ref{sec:method:tokenizer}) may grow, and it bounds the horizon
 over which the coverage score below is computed. Concretely, the candidate
 pool is
@@ -27,36 +38,28 @@ V_D = M \cup \{\, u \in V : u \text{ is reachable from some } c \in M
 \text{ by at most } D \text{ relationships} \,\},
 \]
 obtained in practice as the union of the $D$-hop ego-graph (following
-outgoing edges) around every mapped concept -- see Table~\ref{tab:snomed-stats}
-for its current size. Token selection (Section~\ref{sec:method:selection})
-only ever considers $t \in V_D$: a candidate that no mapped concept can
-reach within $D$ hops has zero possible contribution to the objective below
-and is never evaluated.
+outgoing edges) around every mapped concept. Token selection
+(Section~\ref{sec:method:selection}) only ever considers $t \in V_D$: a
+candidate that no mapped concept can reach within $D$ hops has zero
+possible contribution to the objective below and is never evaluated.
 
-The current value, $D=9$, is not an arbitrary round number: it covers
-98.4\% of concept depths observed in the candidate subgraph, while staying
-well below the longest path length in the graph ($30$, driven by a handful
-of outlier chains). Concepts only reachable beyond depth $9$ tend to be
-generic SNOMED "grouper" categories (e.g.\ \emph{Wound}, \emph{Inspection
-(procedure)}) rather than clinically specific concepts, so little is lost
-by not extending the budget further. \doubt{Using one shared $D$ for all
-three roles (candidate radius, tree depth, coverage horizon) is a
-simplifying design choice worth calling out explicitly to a reviewer -- is
-that coupling intentional/load-bearing, or a current implementation
-convenience that a future version might relax into three independent
-hyperparameters?}
+$D$ trades off computational cost against coverage: a larger $D$ grows the
+candidate pool, deepens context trees, and widens the coverage horizon, at
+proportionally higher cost, while a smaller $D$ is cheaper but risks
+excluding concepts that only a broader candidate could represent. The
+value used in our experiments, and how we chose it, is reported in
+Section~\ref{sec:results:candidates}.
 
-\subsection{Greedy token selection}
-\label{sec:method:selection}
-
+\subsection{Semantic coverage score}
+\label{sec:method:score}
 \begin{quote}\small\itshape
 \begin{itemize}
 \item Greedy token selection based on semantic coverage with lambda as distance penality (add illustration)
 \end{itemize}
 \end{quote}
-
-Given the candidate pool $V_D$, we now need a rule for choosing which $k$ of
-its members become tokens. For $u \in V$, $T \subseteq V$, and horizon
+Given the candidate pool $V_D$, we first need a way to measure how well a
+set of tokens represents a concept, before we can ask which set of $k$
+tokens does so best. For $u \in V$, $T \subseteq V$, and horizon
 $h \in \{0, \dots, D\}$, let $S_h(u, T) \in [0, 1]$ denote how well $u$ is
 covered by $T$ when at most $h$ further relationships may be traversed. The
 base case is
@@ -64,10 +67,7 @@ base case is
 S_0(u, T) = \mathbf{1}[u \in T],
 \]
 and, extending the recursion with a per-hop distance penalty $\lambda \in
-(0, 1]$ \notetoself{confirmed by you: this $\lambda$ term is your own
-addition on top of the original PDF draft, which only has the undiscounted
-($\lambda{=}1$) version of Eq.~\eqref{eq:coverage} -- well spotted catching
-that gap.},
+(0, 1]$,
 \begin{equation}
 S_h(u, T) =
 \begin{cases}
@@ -77,7 +77,7 @@ S_h(u, T) =
 \end{cases}
 \label{eq:coverage}
 \end{equation}
-In words: a token is absorbing (its coverage is $1$ at every remaining
+$d^+(u)$ denotes the out-degree of $u$. In words: a token is absorbing (its coverage is $1$ at every remaining
 horizon), and every other node's coverage is the $\lambda$-discounted
 average coverage of its out-neighbors. Setting $\lambda = 1$ recovers the
 undiscounted score, in which a token found $j$ hops away and a token found
@@ -93,8 +93,23 @@ This objective has a property that makes it tractable at scale: $F_D$ is
 normalized, monotone, and submodular in $T$ (the marginal gain of adding a
 token never increases as more tokens are already selected), which follows
 from writing $F_D$ as a positive average, over random depth-$D$ walks from
-each $c \in M$, of the indicator that the walk hits $T$. Submodularity buys
-two things. First, the classical greedy approximation guarantee,
+each $c \in M$, of the indicator that the walk hits $T$. Section~\ref{sec:method:selection}
+builds directly on this property to select tokens efficiently and with a
+guarantee on solution quality.
+
+\subsection{Greedy marginal-gain token selection}
+\label{sec:method:selection}
+Given the coverage score $F_D$ (Section~\ref{sec:method:score}), we now
+need a rule for choosing which $k$ members of $V_D$ become tokens. For
+$T \subseteq V_D$ and a candidate $t \in V_D \setminus T$, the
+\emph{marginal gain} of adding $t$ to $T$ is
+\[
+\Delta(t \mid T) := F_D(T \cup \{t\}) - F_D(T).
+\]
+Greedy selection builds $T$ one token at a time, at each step adding the
+candidate with the largest marginal gain given what has already been
+selected. Submodularity of $F_D$ buys two things. First, the classical
+greedy approximation guarantee,
 \begin{equation}
 F_D(T^{\text{greedy}}_k) \ge \Big(1 - \tfrac{1}{e}\Big) \max_{|T| \le k} F_D(T).
 \label{eq:guarantee}
@@ -103,15 +118,17 @@ Second, and more important for a candidate pool of tens of thousands of
 nodes, it licenses \emph{lazy} greedy: each candidate's previously computed
 marginal gain is a valid upper bound on its current gain, so at every step
 it suffices to re-verify only the best stale candidate against the
-next-best stale bound, instead of recomputing every remaining candidate.
+next-best stale bound, instead of recomputing every remaining candidate's
+gain from scratch \citeneeded{minoux1978accelerated}.
+
 Algorithm~\ref{alg:select-tokens} states this loop precisely; it calls
 \textsc{CandidateDelta} (Algorithm~\ref{alg:candidate-delta}), which
-computes one candidate's exact marginal gain by propagating a sparse
-\emph{delta} backward through the incoming-edge structure -- adding a
-candidate $t$ only ever changes $S_h$ at $t$ itself and at vertices that can
-reach $t$ within $D$ hops in reverse -- instead of recomputing the full
-$O(D(|V|+|E|))$ recursion of Eq.~\eqref{eq:coverage} from scratch for every
-candidate at every step.
+computes one candidate's exact marginal gain $\Delta(t \mid T)$ by
+propagating a sparse \emph{delta} backward through the incoming-edge
+structure -- adding a candidate $t$ only ever changes $S_h$ at $t$ itself
+and at vertices that can reach $t$ within $D$ hops in reverse -- instead of
+recomputing the full $O(D(|V|+|E|))$ recursion of Eq.~\eqref{eq:coverage}
+from scratch for every candidate at every step.
 
 \begin{algorithm}[h]
 \caption{\textsc{SelectTokens} -- lazy-greedy token selection}
@@ -165,103 +182,84 @@ candidate at every step.
 \end{algorithmic}
 \end{algorithm}
 
-\subsubsection{Precomputation and reuse across a sweep}
-\label{sec:method:precompute}
+\paragraph{Complexity.} Let $R_D(t) = \{u \in V_D : t \text{ is reachable
+from } u \text{ within } D \text{ hops}\}$ be the reverse $D$-hop
+neighborhood of $t$: the only vertices whose coverage
+\textsc{CandidateDelta} can change. One call to \textsc{CandidateDelta}$(t)$
+costs $O(D \cdot |E(R_D(t))|)$, $D$ rounds of backward propagation, each
+touching the edges among vertices in $R_D(t)$ at most once, which is far
+cheaper than recomputing Eq.~\eqref{eq:coverage} for the whole pool,
+$O(D(|V_D|+|E_D|))$, whenever $R_D(t)$ is a small local neighborhood rather
+than all of $V_D$, the common case in a sparse graph like SNOMED~CT.
 
-Two pieces of Algorithms~\ref{alg:select-tokens}--\ref{alg:candidate-delta}
-depend only on the graph $G$, never on $T$ or on which candidate is being
-scored: the row-normalized transition matrix $A$ that Eq.~\eqref{eq:coverage}
-multiplies against (with $\lambda$ already folded in), and the
-per-node out-edge lists used by the tokenizer
-(Section~\ref{sec:method:tokenizer}), pre-sorted so that non-\texttt{IS\_A}
-relationships are visited before \texttt{IS\_A} ones. Because a full
-evaluation sweep re-runs selection for every $(\lambda, k)$ pair on the
-\emph{same} graph, both structures are built exactly once per graph and
-shared for the whole sweep -- via a process-pool initializer when the
-initial seeding pass of Algorithm~\ref{alg:select-tokens} is parallelized --
-rather than being rebuilt inside every task. This removes a redundant
-$O(|V|+|E|)$ rebuild from what would otherwise be millions of repeated
-calls. Only the seeding pass is parallelized this way: once the lazy loop
-itself is running, an accepted token typically needs only $1$--$7$
-re-evaluations of the heap's top candidate before it is certified as the
-true maximizer, so the loop is kept serial -- at that scale, the overhead
-of shipping work to a worker process would exceed the work saved.
+The initial seeding pass makes $|V_D|$ such calls in parallel,
+then builds the max-heap in $O(|V_D| \log |V_D|)$. Submodularity guarantees
+a stale gain is always an upper bound on a candidate's true current gain
+\citeneeded{minoux1978accelerated}, so re-verifying the heap's top
+candidate against the next-best stale bound never lets a suboptimal
+candidate through. In the worst case every candidate still needs
+re-verifying at every step, giving the same $O(k \cdot |V_D|)$
+\textsc{CandidateDelta} calls as naive greedy; in practice, consistent with
+lazy greedy's known behavior on submodular objectives, only a small,
+roughly constant number of candidates need re-verification per accepted
+token, since diminishing marginal gains make a stale loser unlikely to
+overtake the current leader later. Selecting $k$ tokens therefore costs
+$O(k \log |V_D|)$ heap operations plus between $O(k)$ and $O(k \cdot
+|V_D|)$ \textsc{CandidateDelta} calls, on top of the one-time,
+parallelizable $O(|V_D|)$ seeding pass.
 
-\subsection{Tokenizer}
+
+
+\subsection{Tokenization into context-tree representation}
 \label{sec:method:tokenizer}
 
-\begin{quote}\small\itshape
+The lazy-greedy procedure in \S\ref{sec:method:selection} produces the token vocabulary $T$. Selecting $T$ answers ``which concepts become tokens.'' A separate question is how a mapped concept $c \in M$ should be represented once $T$ is fixed. The simplest option -- the flat, unordered set of tokens reachable from $c$ -- throws away exactly the information that non-\texttt{IS\_A} relationships were designed to carry: it discards \emph{which} attribute value pairs with \emph{which}, collapsing distinct clinical configurations into the same bag of tokens. SNOMED CT concept 86299006 (Tetralogy of Fallot) illustrates why this matters. Its defining relationships include four morphology--site pairs:
 \begin{itemize}
-\item tokenizer (say why flatten is not good, add illustration, resulting context trees)
+    \item \emph{Hypertrophy} -- \emph{right ventricular structure}
+    \item \emph{Stenosis} -- \emph{pulmonary valve structure}
+    \item \emph{Overriding structure} -- \emph{aorta}
+    \item \emph{Septal defect} -- \emph{interventricular septum structure}
 \end{itemize}
-\end{quote}
 
-Selecting $T$ answers "which concepts become tokens." A separate question
-is how a mapped concept $c \in M$ should be \emph{represented} once $T$ is
-fixed. The simplest option -- the flat, unordered set of tokens reachable
-from $c$ -- throws away exactly the information that non-\texttt{IS\_A}
-relationships were designed to carry: if a concept has two independent
-\emph{finding site} occurrences, each qualified by its own
-\emph{laterality}, a flat token set $\{\text{kidney}, \text{adrenal gland},
-\text{left}, \text{right}\}$ can no longer tell which laterality belongs to
-which site. \doubt{keeping this exact kidney/adrenal example from your PDF
--- confirm, or swap for a real HUG-mapped concept once we pick an
-illustrative one for the figure below.}
+If we flatten these into an unordered bag of tokens -- \{Hypertrophy, Stenosis, Overriding structure, Septal defect, right ventricular structure, pulmonary valve structure, aorta, interventricular septum structure\} -- nothing in the representation says which morphology attaches to which site. A model given only this bag cannot distinguish the actual concept from a hypothetical, clinically distinct configuration where, say, the septal defect involves the pulmonary valve structure instead of the interventricular septum. Relationship groups exist precisely to rule out this kind of cross-pairing, and a tokenizer that discards them reintroduces the ambiguity SNOMED CT was designed to avoid.
 
-We avoid this by recursively expanding each mapped concept $c$ into a
-\emph{context tree} instead. \texttt{IS\_A} relationships are transparent
-and continue the search in the current context; every other relationship
-type opens a fresh subcontext, so that two independent occurrences of the
-same non-\texttt{IS\_A} relationship type are kept apart. Algorithm~\ref{alg:expand}
-states this precisely; two implementation details are worth noting
-alongside it. First, a node's outgoing edges are visited non-\texttt{IS\_A}
-first, so that when the same subcontext key $(r, v)$ is reached twice at
-different depths, the shallower (more direct) occurrence is what gets kept
-(line~9's "keep more direct" rule in the underlying implementation).
-Second, a token located exactly at depth $D$ is still accepted, since the
-token check (line~2) happens before the depth-budget check (line~3).
+This is a general problem, not one specific to congenital heart disease: any concept whose definition pairs two or more attribute values of the same relationship type -- most visibly laterality, where a finding is present on one paired structure and absent, or different, on its contralateral counterpart -- loses that pairing under flattening, and with it the distinction between two clinically different presentations.
 
-\begin{algorithm}[h]
-\caption{\textsc{Expand} -- context-tree construction, called as \textsc{Expand}$(c, q_0, 0)$ for each $c \in M$}
+We preserve this information with a \emph{context tree}. Starting from a mapped concept $c$, the tree mirrors the traversal used to build the candidate pool (\S\ref{sec:method:candidates}), but with one distinction: \texttt{IS\_A} edges are \emph{transparent} and continue the search within the current context, while every other relationship type opens a fresh \emph{subcontext}, keyed by the pair $(r, v)$ of relationship type and destination concept. Two independent occurrences of the same non-\texttt{IS\_A} relationship type within the same context are therefore kept apart as distinct subcontexts, rather than collapsed into the same bag.
+
+Algorithm~\ref{alg:expand} formalizes this. It is invoked once per mapped concept as \textsc{Expand}$(c, q_0, 0)$, where $q_0$ is a fresh root context. The resulting tree keeps only $T$ as its vocabulary; its subcontext structure records exactly which relationship chain each token was reached through. This is what preserves the pairing above -- e.g., that \emph{Hypertrophy} attaches to the \emph{right ventricular structure} and not to the \emph{pulmonary valve structure}, and that \emph{Overriding structure} attaches to the \emph{aorta} -- distinctions a flat token set would collapse into an unordered bag.
+
+\begin{algorithm}[t]
+\caption{\textsc{Expand}$(u, q, d)$}
 \label{alg:expand}
 \begin{algorithmic}[1]
-\Function{Expand}{$u$, $q$, $d$}
+\Procedure{Expand}{$u, q, d$}
     \If{$u \in T$}
-        \State attach $u$ as a token of context $q$ at depth $d$; \Return
-    \ElsIf{$d = D$ or $u$ has no outgoing edges}
-        \State mark $q$ \emph{uncovered} on this branch; \Return
-    \Else
-        \ForAll{outgoing edges $(u, r, v)$ of $u$}
-            \If{$r = \texttt{IS\_A}$}
-                \State \Call{Expand}{$v$, $q$, $d+1$} \Comment{transparent: stay in the same context}
-            \Else
-                \State $q' \gets$ subcontext of $q$ keyed by $(r, v)$, creating it if new
-                \If{$(r,v)$ was new for $q$}
-                    \State \Call{Expand}{$v$, $q'$, $d+1$}
-                \EndIf
-            \EndIf
-        \EndFor
+        \State attach $u$ as a token of context $q$ at depth $d$
+        \State \Return
     \EndIf
-\EndFunction
+    \If{$d = D$ \textbf{or} $u$ has no outgoing edges}
+        \State mark $q$ uncovered on this branch
+        \State \Return
+    \EndIf
+    \For{each outgoing edge $(u, r, v)$, non-\texttt{IS\_A} edges first}
+        \If{$r = \texttt{IS\_A}$}
+            \State \Call{Expand}{$v, q, d+1$} \Comment{transparent: same context}
+        \Else
+            \If{$(r, v)$ is new for $q$}
+                \State create subcontext $q'$ of $q$ keyed by $(r, v)$
+                \State \Call{Expand}{$v, q', d+1$}
+            \EndIf
+        \EndIf
+    \EndFor
+\EndProcedure
 \end{algorithmic}
 \end{algorithm}
 
-The resulting tree keeps only $T$ as its vocabulary; its subcontext
-structure records exactly which relationship chain each token was reached
-through, which is what preserves the kidney/left vs.\ adrenal gland/right
-distinction above.
 
-\begin{figure}[h]
-\centering
-\fbox{\parbox{0.85\textwidth}{\centering
-[FIGURE PLACEHOLDER -- side-by-side: flat token set vs. context tree for a
-real mapped concept with $\ge 2$ non-\texttt{IS\_A} relationship occurrences,
-e.g. the kidney/adrenal-gland example, or a concept pulled directly from the
-HUG-mapped data.]}}
-\caption{Context-tree tokenization example (to be replaced with an actual
-figure).}
-\label{fig:context-tree}
-\end{figure}
+
+
+% FIGURE PLACEHOLDER -- side-by-side: flat token set vs. context tree for concept 86299006 (Tetralogy of Fallot), showing how the four morphology--site pairs (Hypertrophy/right ventricular structure, Stenosis/pulmonary valve structure, Overriding structure/aorta, Septal defect/interventricular septum structure) collapse into one undifferentiated bag under the flat representation but stay distinguishable as separate subcontexts in the tree.
 
 \subsection{Evaluation metrics}
 \label{sec:method:metrics}
@@ -279,10 +277,10 @@ figure).}
 
 With a fixed $T$ and context trees for all of $M$ in hand, we can now ask
 how good this representation actually is. All eight metrics below are
-computed from the \emph{realized} context trees, as opposed to $F_D(T)$,
+computed from the tokenized concepts, as opposed to $F_D(T)$,
 which is only the objective used to \emph{select} $T$ in the first place
 (Section~\ref{sec:method:selection}). Table~\ref{tab:metrics} groups them
-into four families and states, for each, which direction is better.
+into four families and states, for each, which direction is better. 
 
 \begin{table}[h]
 \centering
@@ -291,15 +289,15 @@ into four families and states, for each, which direction is better.
 \toprule
 \textbf{Metric} & \textbf{Family} & \textbf{Better} & \textbf{Definition} \\
 \midrule
-Conciseness & Efficiency & lower & Mean number of token leaves per concept's context tree. \\
-Tree complexity & Efficiency & lower & Mean number of contexts (root plus subcontexts) per tree. \\
+Conciseness & Efficiency & -& Mean number of token leaves per concept's context tree. \\
+Tree complexity & Efficiency & -& Mean number of contexts (root plus subcontexts) per tree. \\
 Distance score & Fidelity & higher & $1 - \overline{d}/(D{+}1)$, where $\overline{d}$ is the mean hop-distance at which tokens are found (uncovered branches counted at $D{+}1$). $1.0$ means every branch found a token immediately. \\
 Uniqueness entropy & Discriminative power & higher & Normalized Shannon entropy of context-tree signatures across $M$; low when many concepts collapse onto the same tree shape. \\
 Unique rate & Discriminative power & higher & Per-concept decomposition of the above: fraction of concepts whose signature is not shared by any other concept. \\
 Exact rate & Discriminative power & higher & Fraction of mapped concepts that are themselves selected as a token (a $0$-hop, exact representation); maximally discriminable by construction. \\
-Semantic coverage & Semantic content & higher & $F_D(T)$ itself, always reported at $\lambda=1$ regardless of the $\lambda$ used at \emph{selection} time (see \doubt{confirm this evaluation convention}). \\
-Uncovered rate & Semantic content & lower & Fraction of concepts with \emph{zero} tokens anywhere in their tree. \\
-Unk rate & Semantic content & lower & Fraction of concepts with \emph{at least one} uncovered branch; by construction, uncovered rate $\le$ unk rate. \\
+Semantic coverage & Semantic content & higher & $F_D(T)$ itself, always reported at $\lambda=1$ regardless of the $\lambda$ used at \emph{selection} time. \\
+Unknown rate& Semantic content & lower & Fraction of concepts with \emph{zero} tokens anywhere in their tree. \\
+Uncovered branch rate & Semantic content & lower & Fraction of concepts with \emph{at least one} uncovered branch; by construction, uncovered rate $\le$ unk rate. \\
 \bottomrule
 \end{tabular}
 \caption{The eight evaluation metrics, grouped by family, with direction of improvement and definition.}
@@ -321,12 +319,7 @@ Unk rate & Semantic content & lower & Fraction of concepts with \emph{at least o
 
 We compare our method against seven baselines from three families, plus one
 ablation of our own method, summarized in Table~\ref{tab:baselines}. All of
-them are chosen to be well defined on a DAG; \notetoself{per your feedback,
-eigenvector centrality has been removed from this list entirely -- its
-Perron--Frobenius uniqueness guarantee requires strong connectivity, which a
-DAG cannot have, so it is no longer part of this draft even as a
-caveated option. It remains a real baseline in the codebase/notebooks; this
-is a paper-scope decision, not a code change.} Every baseline ranks the full
+them are chosen to be well defined on a DAG. Every baseline ranks the full
 candidate pool $V_D$ once and is then truncated to the top-$k$ prefix of
 that ranking, exactly as our own method's selection history is truncated --
 so every method in Section~\ref{sec:results} is compared at matched $k$.
@@ -334,18 +327,18 @@ so every method in Section~\ref{sec:results} is compared at matched $k$.
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{p{2.2cm}p{1.7cm}p{4.9cm}p{2.0cm}}
+\begin{tabular}{p{4cm}p{2.5cm}p{6cm}}
 \toprule
-\textbf{Baseline} & \textbf{Family} & \textbf{Rule} & \textbf{DAG note} \\
+\textbf{Baseline} & \textbf{Family} & \textbf{Rule} \\
 \midrule
-$k$-random & Random & Independent uniform sample of $k$ candidates without replacement, repeated over seeds and averaged (no single ranking to truncate). & Trivial \\
-Highest degree & Degree-based & Number of distinct predecessors within $D$ hops, over every relationship type. & Compatible \\
-Highest degree, $\Delta\le 1$ & Degree-based & Same score, restricted to direct ($1$-hop) predecessors. & Compatible \\
-Most children & Degree-based & Same $D$-hop predecessor count, restricted to the \texttt{IS\_A}-only subgraph. & Compatible \\
-PageRank & Centrality & Stationary distribution of a random walk with restart probability $1-\alpha$, $\alpha=0.85$ \citeneeded{Brin \& Page, PageRank}. & Compatible \\
-Personalized PageRank & Centrality & Same recursion, restarting uniformly on $M$ instead of on all of $V$ -- the one $M$-aware centrality baseline \citeneeded{personalized / topic-sensitive PageRank, e.g. Haveliwala}. & Compatible \\
-Closeness centrality & Centrality & Reciprocal of the mean shortest-path distance \emph{to} a candidate from every node that can reach it (in-degree-oriented, Wasserman--Faust improved) \citeneeded{Freeman, closeness centrality}. & Compatible \\
-Discrete set-cover (ablation) & Ours, ablated & Same lazy/CELF greedy mechanism and $(1{-}1/e)$ guarantee (Eq.~\eqref{eq:guarantee}) as our method, but $S_h(u,T)$ replaced by a binary "within $D$ hops of some token" indicator -- classical maximum-coverage greedy. & Compatible \\
+$k$-random & Random & Independent uniform sample of $k$ candidates without replacement, repeated over seeds for 20 iterations and averaged. \\
+Highest degree & Degree-based & Number of distinct predecessors within $D$ hops, over every relationship type. \\
+Highest degree, $\Delta\le 1$ & Degree-based & Same score, restricted 0 to 1-hop predecessors.\\
+Most children & Degree-based & Same $D$-hop predecessor count, restricted to the \texttt{IS\_A}-only subgraph. \\
+PageRank & Centrality & Stationary distribution of a random walk with restart probability $1-\alpha$, $\alpha=0.85$ \citeneeded{Brin \& Page, PageRank}. \\
+Personalized PageRank & Centrality & Same recursion, restarting uniformly on $M$ instead of on all of  \citeneeded{personalized / topic-sensitive PageRank, e.g. Haveliwala}. \\
+Closeness centrality & Centrality & Reciprocal of the mean shortest-path distance \emph{to} a candidate from every node that can reach it (in-degree-oriented, Wasserman--Faust improved) \citeneeded{Freeman, closeness centrality}. \\
+Discrete set-cover (ablation) & Ours, ablated & Same lazy/CELF greedy mechanism and $(1{-}1/e)$ guarantee (Eq.~\eqref{eq:guarantee}) as our method, but $S_h(u,T)$ replaced by a binary "within $D$ hops of some token" indicator.\\
 \bottomrule
 \end{tabular}
 \caption{Baselines compared against our method, grouped by family. Eigenvector centrality is excluded (see note below).}

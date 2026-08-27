@@ -1,33 +1,21 @@
 \section{Background}
-\label{sec:background}
-
-% NOTE (this revision pass): added Table \ref{tab:snomed-stats} to
-% consolidate the scattered numbers (400k total, 75,964 candidate pool, 2
-% components, D=9) instead of stating them only in prose; simplified
-% sentence structure; added an explicit transition sentence into
-% Section~\ref{sec:method}. No numbers changed from the previous version.
-
 \subsection{Directed acyclic graphs}
-
 \begin{quote}\small\itshape
 \begin{itemize}
 \item DAG (directed acycclic graph)
 \end{itemize}
 \end{quote}
-
 A directed acyclic graph (DAG) is a directed graph $G = (V, E)$ with no
 directed cycle: there is no path that starts and ends at the same vertex
 while always following edge direction. Equivalently, $G$ admits a
 topological ordering of $V$ in which every edge points from an earlier to a
-later vertex. Acyclicity is what makes "ancestor" and "descendant" well
-defined for any two connected vertices: a vertex reached by following edges
-forward is strictly more specific than, and can never be an ancestor of, the
-vertex it was reached from. Section~\ref{sec:method} relies on this property
-directly -- it is what guarantees every hop-distance used later in the paper
-is finite and well defined.
+later vertex \citeneeded{standard graph theory reference, e.g. Cormen et al.}.
+Acyclicity is what makes reachability well behaved: no vertex reachable from
+$u$ by following edges forward can also reach back to $u$. Section~\ref{sec:method}
+relies on this property directly -- it is what guarantees every hop-distance
+used later in the paper is finite and well defined.
 
 \subsection{SNOMED CT}
-
 \begin{quote}\small\itshape
 \begin{itemize}
 \item Number of concepts, number of distinct relations,
@@ -35,64 +23,31 @@ is finite and well defined.
 \item semantic value from relation types and concept connectivities (concepts are defined by the others in the DAG)
 \end{itemize}
 \end{quote}
-
-SNOMED~CT is one such graph. Table~\ref{tab:snomed-stats} summarizes its
-size and the working numbers used throughout the rest of the paper.
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{p{6.2cm}p{5.3cm}}
-\toprule
-\textbf{Quantity} & \textbf{Value} \\
-\midrule
-Total SNOMED~CT concepts, $|V|$ & $\approx 400{,}000$ \citeneeded{SNOMED International release statistics} \\
-Distinct relationship types & \needresults{exact count for the current release/extension} \\
-Mapped concepts (institution-specific), $|M|$ & $\approx 40{,}000$ \\
-Candidate pool at $D=9$, $|V_D|$ & $75{,}964$ \\
-Weakly connected components of $V_D$ & $2$ \\
-\bottomrule
-\end{tabular}
-\caption{SNOMED~CT and working-subgraph statistics used throughout the paper. $D$, $M$, and $V_D$ are defined in Section~\ref{sec:method:candidates}.}
-\label{tab:snomed-stats}
-\end{table}
-
-Two properties of this graph matter for everything that follows. First, it
-is acyclic (Section~\ref{sec:background}.1 above). Second, its edges carry
-semantic value beyond hierarchy alone. One relationship type, \texttt{IS\_A},
-encodes generalization/specialization -- the parent/child relation defined
-above. Every other relationship type (for example \emph{finding site},
-\emph{associated morphology}, \emph{has active ingredient}) attaches an
-attribute to a concept by pointing to \emph{another concept}, rather than by
-storing a value locally. As a consequence, a concept's meaning is not
-contained in the concept itself: it is constructed from its position and
-connections inside the DAG. Two concepts that look unrelated by name can
-share most of their meaning if they are reached through the same
-relationships to the same targets; conversely, two occurrences of the same
-relationship type on the same concept can point to entirely different,
-non-interchangeable aspects of it. This distinction -- \texttt{IS\_A} versus
-everything else -- is exactly what our method is built around:
-Section~\ref{sec:method} defines a coverage score and a tree representation
-that treat the two kinds of edge differently for this reason.
-
-In practice, we do not draw candidate tokens from all of $V$: we restrict
-them to a bounded neighborhood of the mapped concepts $M$
-(Section~\ref{sec:method:candidates} gives the exact construction and its
-depth budget $D$). Under the current setting ($D=9$), this candidate
-subgraph $V_D$ contains \textbf{75{,}964} concepts, spread across
-\textbf{2} weakly connected components (Table~\ref{tab:snomed-stats}).
-\notetoself{worth a short remark in the paper: this is barely larger than
-the candidate-pool size computed under the old $D=3$ setting
-($\sim$75{,}634), despite $D$ growing from 3 to 9 -- the $D$-hop ego-graph
-around $M$ saturates fast, and most of the reachable neighborhood was
-already captured at $D=3$. Also worth flagging: 2 \emph{weakly} connected
-components means the candidate graph is not a single connected structure --
-does that split correspond to something meaningful (e.g.\ two disjoint
-clinical domains in $M$), or is it a couple of stray/isolated concepts? Good
-to know before Section~\ref{sec:results} describes the pool.}
+SNOMED~CT is a poly-hierarchy DAG containing more than 420{,}000
+distinct concepts, with more than 100 distinct semantic relationships connecting concepts among
+them \citeneeded{SNOMED International concept model / release statistics}.
+Two properties of this graph matter. First, it is acyclic. Second, its edges
+carry semantic value beyond hierarchy alone, and that value differs by
+relationship type. One relationship type, \texttt{IS\_A}, encodes
+generalization/specialization: an edge $u \xrightarrow{\texttt{IS\_A}} v$
+means $u$ is a child of $v$, i.e.\ $u$ is strictly more specific than $v$,
+matching the source/destination convention of the underlying release file
+\citeneeded{SNOMED CT Release File Specification, relationship file}. Every
+other relationship type instead encodes an attribute assignment rather than
+a hierarchy: an edge $u \xrightarrow{R} v$, for a relation $R$ such as
+\emph{finding site} or \emph{associated morphology}, means that concept
+$u$'s value for attribute $R$ is the concept $v$, not that $v$ is more
+general than $u$. As a consequence, a concept's meaning is not contained in
+the concept itself: it is constructed from its connections inside the DAG
+with respect to the other concepts. Two concepts that look unrelated by
+name can share common structure if they connect via the same relationships
+to the same targets. This distinction -- \texttt{IS\_A} as a hierarchy edge
+versus every other relationship type as an attribute edge -- is exactly
+what our method is built around: Section~\ref{sec:method} defines a
+coverage score and a tree representation that treat the two kinds of edge
+differently for this reason.
 
 \subsection{Working vocabulary and notation}
-
 With these properties established, we can now state the notation used for
 the rest of the paper. Let $M \subseteq V$ denote the mapped concepts
 introduced above, and let $T \subseteq V$, $|T| = k$, denote a \emph{token

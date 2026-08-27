@@ -1,0 +1,16 @@
+intro gap part
+tao2024scaling — Tao, Liu, Dou, Muennighoff, Wan, Luo, Lin, Wong. Scaling Laws with Vocabulary: Larger Models Deserve Larger Vocabularies. NeurIPS 2024. arXiv:2407.13623. Use for the vocabulary-size/data-budget scaling claim. Note: their headline finding runs in the opposite direction (most LLMs are under-vocabularized relative to compute) — cite it for the joint-scaling relationship, not as direct evidence that large vocabularies hurt.
+zhang2023longtailed — Zhang, Kang, Hooi, Yan, Feng. Deep Long-Tailed Learning: A Survey. IEEE TPAMI, 2023. arXiv:2110.04596. Grounds "long-tailed distribution" as an established ML term rather than an ad hoc description.
+su2025medtok — Su et al., MedTok, 2025 (already in your draft).
+Optional, if you want the classical scaling-law lineage explicit rather than only the vocabulary-specific paper: Kaplan et al., Scaling Laws for Neural Language Models, 2020 (arXiv:2001.08361), and/or Hoffmann et al., Training Compute-Optimal Large Language Models (Chinchilla), 2022 — cite either only if you want a sentence establishing the general N/D/C scaling-law backdrop before narrowing to vocabulary.
+
+li2020behrt	Li et al., "BEHRT: Transformer for Electronic Health Records," Scientific Reports, 2020
+yang2023transformehr	Yang et al., "TransformEHR...," Nature Communications, 2023
+vaswani2017attention	Vaswani et al., "Attention Is All You Need," NeurIPS, 2017
+choi2017gram	Choi et al., "GRAM: Graph-based Attention Model for Healthcare Representation Learning," KDD, 2017
+tao2024scaling	Tao et al., "Scaling Laws with Vocabulary...," NeurIPS, 2024
+zhang2023longtailed	Zhang et al., "Deep Long-Tailed Learning: A Survey," IEEE TPAMI, 2023
+su2025medtok	Su et al., "Multimodal Medical Code Tokenizer" (MedTok), ICML, 2025
+sennrich2016bpe	Sennrich et al., "Neural Machine Translation of Rare Words with Subword Units," ACL, 2016
+kudo2018sentencepiece	Kudo & Richardson, "SentencePiece...," EMNLP, 2018
+vandenoord2017vqvae	Van den Oord et al., "Neural Discrete Representation Learning," NeurIPS,
