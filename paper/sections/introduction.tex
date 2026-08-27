@@ -17,16 +17,13 @@
 \end{itemize}
 \end{quote}
 
-Electronic health record (EHR) foundation models (FMs) have recently emerged as
-promising assistive tools for clinical decision support \citeneeded{recent EHR
-foundation model paper(s), e.g. a transformer-based EHR-FM trained on
-longitudinal patient trajectories}. Because clinical events are recorded
-heterogeneously across institutions, such models are typically trained over
-standardized clinical vocabularies -- ICD, RxNorm, SNOMED~CT, LOINC -- rather
+Electronic health record (EHR) are routinely collected from clinical practice, the large amount of data is a hidden gem providing protential for clinical research. 
+Leveraging this EHR, Foundation models (FMs) have recently emerged as promising assistive tools for clinical decision support \citeneeded{recent EHR foundation model paper(s), e.g. a transformer-based EHR-FM trained on longitudinal patient trajectories}. 
+Because clinical events are recorded heterogeneously across institutions, such models are typically trained over standardized clinical vocabularies -- ICD, RxNorm, SNOMED~CT, LOINC -- rather
 than free text, so that the same clinical fact is represented the same way
-regardless of where it was recorded \citeneeded{standardized clinical
-vocabulary / interoperability reference}. Several of these vocabularies are
-not flat code lists but ontologies structured as directed acyclic graphs
+regardless of different clinical naming variation \citeneeded{standardized clinical
+vocabulary / interoperability reference}. 
+Several of these vocabularies are not flat code lists but ontologies structured as directed acyclic graphs
 (DAGs), which is what lets them normalize clinical naming while defining the clinical concepts in the semantic meaning. SNOMED~CT is the clearest
 example: it comprises more than 400{,}000 concepts covering disorders,
 procedures, medications, morphologic findings and more, connected by over 100
@@ -69,9 +66,9 @@ this semantic structure on the table. Data-driven subword approaches, such as
 byte-pair encoding applied to categorical medical codes, merge concepts purely
 by co-occurrence statistics: they preserve no explicit semantics and the
 resulting vocabulary is highly sensitive to data quality and to the order in
-which concepts are seen \citeneeded{byte-pair-style tokenization of medical
+which concepts are arranged \citeneeded{byte-pair-style tokenization of medical
 codes}. Frequency- or entropy-based top-$k$ selection keeps only the most
-prevalent, or highest-information-contributing, concepts, discarding a
+prevalent, or highest-information-contributing concepts, discarding a
 considerable amount of clinically relevant but rarer information
 \citeneeded{prevalence/entropy-based vocabulary pruning in clinical ML}.
 Truncating or rolling leaf concepts up to their ontology parents reduces
@@ -86,13 +83,9 @@ embedding-space codebooks (e.g.\ vector-quantization-style tokenizers) can
 compress the vocabulary without hand-designed rules, but at the cost of
 controllability and interpretability: the resulting tokens no longer
 correspond to identifiable, auditable clinical concepts \citeneeded{learnable
-codebook / VQ-style tokenization}. None of these families of methods make
-direct use of the semantic richness already encoded in the vocabulary's own
-DAG structure when reducing its size. \doubt{Is the sharpest way to state the
-gap "none of these use the DAG structure itself," or the stronger claim "none
+codebook / VQ-style tokenization, MedTok }. None
 of these produce a token set that is both semantically motivated \emph{and}
-inspectable/controllable"? The second framing lines up more directly with the
-contribution list below -- your call on which to lead with.}
+inspectable/controllable while reducong the vocabulary size. 
 
 \subsection{Our method and contribution}
 
@@ -111,7 +104,7 @@ on a concept DAG such as SNOMED~CT. First, we select a small set of tokens
 using a greedy, submodular semantic-coverage objective (Section~\ref{sec:method}),
 which fixes the target vocabulary size in advance rather than as a side
 effect of a training run. Second, rather than representing a concept as an
-unordered bag of the tokens it maps to, we represent it as a \emph{context
+unordered bag of the tokens, we represent it as a \emph{context
 tree}: a small subgraph that preserves which relationship each token was
 reached through, so that, for instance, a token for "kidney" and a token for
 "left" stay attached to the same anatomical-site branch instead of being
