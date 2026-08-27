@@ -8,7 +8,11 @@
 % Inter-ontology tokenization now lives here ONLY (not in the Introduction's
 % contribution list). The three extensions after it are pulled from your
 % existing PDF's own "Perspectives" section (\S8), which doesn't currently
-% appear anywhere in main.tex's Future Work outline.
+% appear anywhere in main.tex's Future Work outline. This revision pass
+% added short transition sentences between the four subsections; no content
+% changed.
+
+The limitations above point to four directions for extending this work.
 
 \subsection{Inter-ontology tokenization}
 
@@ -31,7 +35,8 @@ only, as you asked.}
 \notetoself{pulled from your PDF's \S8 "Perspectives" -- not in main.tex's
 outline, but already sketched there.}
 
-The greedy algorithm of Section~\ref{sec:method:selection} never removes a
+A second direction addresses a property of the greedy procedure itself
+rather than of the ontology. The greedy algorithm of Section~\ref{sec:method:selection} never removes a
 token once selected. A token can become nearly redundant once later tokens
 end up covering the same concepts it was originally selected for; a
 marginal-\emph{loss}-based pass could identify and swap out such tokens
@@ -41,7 +46,8 @@ after the fact.
 
 \notetoself{also pulled from your PDF's \S8.}
 
-Expanding a concept via its outgoing relationships
+A third direction questions an assumption made throughout
+Section~\ref{sec:method}: that expanding a concept is lossless. Expanding a concept via its outgoing relationships
 (Section~\ref{sec:method:tokenizer}) implicitly assumes that doing so is
 lossless. For primitive SNOMED~CT concepts -- those not fully defined by
 their stated relationships -- this may not hold. A reconstructibility factor
@@ -57,7 +63,8 @@ reconstructed from its relationships.
 \notetoself{also pulled from your PDF's \S8, which already cites a reference
 for this ([6] in your PDF).}
 
-An independently developed ontology-based similarity measure
+A fourth, more speculative direction would change the objective itself
+rather than build on top of it. An independently developed ontology-based similarity measure
 \citeneeded{ontology-based similarity measure referenced in your PDF's
 Section 8 / reference [6]} could evaluate how well semantic neighborhoods are
 preserved and how severe token collisions are, and could potentially be

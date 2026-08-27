@@ -4,6 +4,10 @@
 \usepackage{booktabs}
 \usepackage{xcolor}
 \usepackage{hyperref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{enumitem}
+\usepackage{multirow}
 
 % ------------------------------------------------------------------
 % Visual markers for the draft. Every place I was unsure about a
@@ -41,7 +45,7 @@
 
 \section{Introduction}
 [background]
-1. EHR research arise nowaday, with it caracteristics of large amount of data routinely collected from health care. EHR can be used to train Foundation Model (FM), with potential to be assistive clinical decision tool
+1. EHR Foundation Model (FM) arises nowaday, with potential to be assistive clinical decision tool
 2. they often use standarized clinical vocabularies such as ICD, RXNORM, SNOMED, LONIC
 3. standarized clinical vocabularies /ontologies DAG, are used to normalize clinical naming, and improve the interoperability
 4. SNOMED CT is a DAG, comprehensive 400k + concepts (covering very broad clinical domains, diorders, medication, morphologies etc...) and semantically rich (composed by 100+ relationship types, have their own way to compose machine readable semantic expression), mappable to other clincial terminologies.

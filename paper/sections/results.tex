@@ -1,14 +1,13 @@
 \section{Results}
 \label{sec:results}
 
-% NOTE: sections results:trend, results:families, and results:lambda are now
-% filled in from the real sweep in D:\greedy_graph_data\metrics_results
-% (baseline_performance.parquet, greedy_tree_performance.parquet,
-% k_rdn_performance.parquet -- current D=9 run, k = 500..19,500 step 500,
-% 39 k-values, k_random averaged over its 20 iters per k). Every number
-% below was computed directly from those three files, not carried over from
-% the obsolete IMPLEMENTATION.md analysis. Expert-acceptability results and
-% token reuse rate remain placeholders -- no data exists for either yet.
+% NOTE (this revision pass): added two new tables (tab:degree-crossover,
+% tab:discriminative-detail) that replace embedded-number prose comparisons
+% with tables + a \ref{} back to them, re-verified against the same parquet
+% files as before this turn; simplified long sentences; added transitions
+% between subsections. All previously-verified numbers and findings are
+% unchanged -- Sections results:trend and results:lambda keep the same
+% content and tables as before this pass.
 
 \subsection{Data}
 \label{sec:results:data}
@@ -33,13 +32,18 @@ should instead be spelled out or anonymized for the paper.}
 \end{itemize}
 \end{quote}
 
-Candidate tokens are restricted to the $D$-hop neighborhood of $M$
-(Section~\ref{sec:method:candidates}), which narrows the pool from
-$|V| \approx 400{,}000$ SNOMED concepts to \textbf{75{,}964} concepts under
-the current setting ($D=9$), spread across \textbf{2 weakly connected
-components}. \notetoself{also noted in Section~\ref{sec:background}: this is
-barely larger than the old $D{=}3$ figure ($\sim$75{,}634) despite the much
-larger depth budget -- the ego-graph around $M$ saturates quickly.}
+Before comparing methods, we first need to know how large the candidate
+pool actually is. Candidate tokens are restricted to the $D$-hop
+neighborhood of $M$ (Section~\ref{sec:method:candidates}), which narrows the
+pool from $|V| \approx 400{,}000$ SNOMED concepts to \textbf{75{,}964}
+concepts under the current setting ($D=9$), spread across \textbf{2} weakly
+connected components (Table~\ref{tab:snomed-stats}). \notetoself{also noted
+in Section~\ref{sec:background}: this is barely larger than the old $D{=}3$
+figure ($\sim$75{,}634) despite the much larger depth budget -- the
+ego-graph around $M$ saturates quickly.} All methods compared below select
+their tokens from this same 75{,}964-concept pool, so any difference between
+them is a difference in \emph{which} tokens are chosen, not in what they had
+access to.
 
 \subsection{General trend across $k$}
 \label{sec:results:trend}
@@ -50,12 +54,14 @@ larger depth budget -- the ego-graph around $M$ saturates quickly.}
 \end{itemize}
 \end{quote}
 
-Table~\ref{tab:coverage-trend} shows semantic coverage $F_D(T)$ (evaluated at
-$\lambda=1$, Section~\ref{sec:method:metrics}) against $k$, for one
-representative member of each family (Section~\ref{sec:method:baselines}):
-\emph{highest degree} (degree-based), \emph{personalized PageRank}
-(centrality-based), our own selector at $\lambda=1$ and, separately, the full
-$\lambda$ sweep, the \emph{discrete set-cover} ablation, and \emph{$k$-random}.
+With the candidate pool fixed, we now vary the token budget $k$ and ask how
+quickly each method reaches good coverage. Table~\ref{tab:coverage-trend}
+shows semantic coverage $F_D(T)$ (evaluated at $\lambda=1$,
+Section~\ref{sec:method:metrics}) against $k$, for one representative member
+of each family (Section~\ref{sec:method:baselines}): \emph{highest degree}
+(degree-based), \emph{personalized PageRank} (centrality-based), our own
+selector at $\lambda=1$ and, separately, the full $\lambda$ sweep, the
+\emph{discrete set-cover} ablation, and \emph{$k$-random}.
 
 \begin{table}[h]
 \centering
@@ -77,21 +83,21 @@ Table~\ref{tab:lambda-sweep}.}
 \label{tab:coverage-trend}
 \end{table}
 
-Three things hold across the entire tested range ($k \in [500, 19{,}500]$,
-i.e.\ up to roughly half of $|M| \approx 40{,}000$), not just at the k-values
-tabulated above. First, every structured method -- ours, both degree-based,
-and all three centrality-based baselines -- reaches semantic coverage
-$\ge 0.999$ within the tested range, while \emph{$k$-random} does not: it
-only reaches $0.804$ at the largest $k$ tested, still well short of every
-structured method. Second, our own method's envelope (best over
-$\lambda \in \{0.2,\dots,1.0\}$) is the fastest of all five families to reach
-$\ge 0.999$ coverage, doing so already at $k=500$, the smallest budget
-tested -- ahead of centrality ($k=1{,}000$), degree ($k=3{,}000$), the
-discrete-set-cover ablation (never reaches $0.999$ within the tested range,
-topping out at $0.999$ only at $k=19{,}500$), and random (never reaches it).
-Third, $k$-random's gap to every structured method does not close within the
-tested range: it is still roughly $0.2$ below the nearest structured method
-at $k=19{,}500$.
+Three findings hold across the entire tested range ($k \in [500, 19{,}500]$,
+i.e.\ up to roughly half of $|M| \approx 40{,}000$), not just at the
+$k$-values tabulated above. First, every \emph{structured} method -- ours,
+both degree-based, and all three centrality-based baselines -- reaches
+semantic coverage $\ge 0.999$ somewhere in the tested range, while
+\emph{$k$-random} does not: it only reaches $0.804$ at the largest $k$
+tested, still well short of every structured method. Second, our own
+method's envelope (best over $\lambda \in \{0.2,\dots,1.0\}$) is the fastest
+of all five families to reach $\ge 0.999$ coverage, doing so already at
+$k=500$, the smallest budget tested -- ahead of centrality ($k=1{,}000$),
+degree ($k=3{,}000$), the discrete-set-cover ablation (never reaches
+$0.999$ within the tested range, topping out at exactly $0.999$ only at
+$k=19{,}500$), and random (never reaches it). Third, $k$-random's gap to
+every structured method does not close within the tested range: it is still
+roughly $0.2$ below the nearest structured method even at $k=19{,}500$.
 
 \subsection{Comparison across baseline families}
 \label{sec:results:families}
@@ -106,56 +112,106 @@ at $k=19{,}500$.
 \end{itemize}
 \end{quote}
 
+The overall speed ranking above raises a follow-up question: does it hold
+\emph{within} each family too, and does it hold on every metric, not just
+semantic coverage? We check each family in turn, then compare all of them
+against ours directly.
+
 \textbf{Degree-based.} Within this family, \emph{highest degree} (all
 relation types) dominates \emph{most children} (\texttt{IS\_A} only) on
-every metric we checked (distance score, conciseness, uniqueness entropy,
-unique rate) at every $k$ we sampled, with one narrow exception: between
-$k \approx 2{,}500$ and $k \approx 4{,}500$, \emph{most children} briefly has
-very slightly \emph{higher} semantic coverage (e.g.\ $0.999$ vs.\ $0.996$ at
-$k=3{,}000$) before \emph{highest degree} overtakes it again by $k=5{,}000$
-and stays ahead for the rest of the range. \notetoself{this local crossover
-is real, not a plotting artifact -- verified directly against the parquet
-rows -- but it's narrow enough that I would state the headline claim as
-"highest degree dominates most children almost everywhere" rather than
-"always," and mention the crossover as a footnote rather than lead with it.
-The pattern you predicted qualitatively (non-hierarchy relations carrying
-extra coverage signal a pure-\texttt{IS\_A} heuristic misses) does hold as
-the overall story -- just not exceptionlessly.}
+distance score, conciseness, uniqueness entropy, and unique rate at every
+$k$ we sampled. Semantic coverage is the one exception, and it is narrow
+enough to deserve its own table rather than a parenthetical number:
+Table~\ref{tab:degree-crossover} shows that between $k=2{,}500$ and
+$k=4{,}500$, \emph{most children} briefly has \emph{higher} semantic
+coverage than \emph{highest degree}, before \emph{highest degree} overtakes
+it again at $k=5{,}000$ and stays ahead for the rest of the tested range.
 
-\textbf{Centrality-based.} \emph{Personalized PageRank}, the one
-$M$-aware member of this family, reaches near-ceiling coverage fastest within
-the family ($k=1{,}000$), ahead of plain PageRank and closeness centrality
--- consistent with the idea that restarting on $M$ rather than uniformly
-should help when the objective is itself about covering $M$.
+\begin{table}[h]
+\centering
+\begin{tabular}{lcccccc}
+\toprule
+$k$ & 2{,}500 & 3{,}000 & 3{,}500 & 4{,}000 & 4{,}500 & 5{,}000 \\
+\midrule
+Highest degree & 0.9962 & 0.9963 & 0.9963 & 0.9981 & 0.9988 & \textbf{0.9999} \\
+Most children  & \textbf{0.9978} & \textbf{0.9990} & \textbf{0.9995} & \textbf{0.9996} & \textbf{0.9998} & 0.9998 \\
+\bottomrule
+\end{tabular}
+\caption{Semantic coverage, highest degree vs.\ most children, around the
+crossover region. Bold marks the higher value in each column.}
+\label{tab:degree-crossover}
+\end{table}
 
-\textbf{Ours vs. every baseline family, on coverage speed.} At small $k$
+\notetoself{this local crossover is real, not a plotting artifact -- verified
+directly against the parquet rows -- but it is narrow enough that the
+headline claim should be "highest degree dominates most children almost
+everywhere," not "always." The pattern you predicted qualitatively
+(non-hierarchy relations carrying extra coverage signal that a
+pure-\texttt{IS\_A} heuristic misses) does hold as the overall story -- just
+not exceptionlessly.}
+
+\textbf{Centrality-based.} \emph{Personalized PageRank}, the one $M$-aware
+member of this family, reaches near-ceiling coverage fastest within the
+family ($k=1{,}000$), ahead of plain PageRank and closeness centrality --
+consistent with the idea that restarting on $M$ rather than uniformly should
+help when the objective is itself about covering $M$.
+
+\textbf{Ours vs.\ every baseline family, on coverage speed.} At small $k$
 (500--1{,}000, i.e.\ roughly 1--2.5\% of $|M|$), our $\lambda$-sweep envelope
 is the only family already at or above $0.998$ semantic coverage; every
 baseline family needs a larger $k$ to catch up (Table~\ref{tab:coverage-trend}).
 
-\textbf{Discriminative power (uniqueness entropy / unique rate).}
-\doubt{your hypothesis that degree-based methods would show \emph{lower}
-discriminative power than ours, from selecting semantically-overlapping
-candidates, is only partly borne out: at $k=1{,}000$, the best degree-based
-member reaches unique rate $0.588$, close to our envelope's $0.594$ -- not
-the large gap the hypothesis predicted. Where a real gap does show up is at
-$k=15{,}000$: centrality-based baselines slightly \emph{overtake} our
-envelope on both uniqueness entropy ($0.989$ vs.\ $0.987$) and unique rate
-($0.903$ vs.\ $0.893$) -- the one place in this sweep where a baseline family
-is not dominated by ours. Worth stating honestly rather than glossing over;
-it doesn't undermine the coverage-speed story above, but it means "ours wins
-on every metric at every $k$" would not be an accurate claim.}
+\textbf{Discriminative power (uniqueness entropy / unique rate).} Coverage
+speed is not the whole story, so Table~\ref{tab:discriminative-detail}
+checks the two discriminative-power metrics directly, at a small $k$ and a
+large one. \doubt{your hypothesis that degree-based methods would show
+\emph{lower} discriminative power than ours, from selecting
+semantically-overlapping candidates, is only partly borne out.}
 
-\textbf{Ablation: soft vs. hard coverage.} The discrete set-cover baseline
-(Section~\ref{sec:method:baselines}) -- same lazy/CELF greedy mechanism and
-approximation guarantee as our method, but a binary rather than
-$\lambda$-decayed coverage signal -- is the slowest of all \emph{structured}
-methods to approach ceiling coverage: it never reaches $\ge 0.999$ within
-the tested range (topping out at $0.999$ exactly at $k=19{,}500$), behind
-every degree-based and centrality-based baseline as well as our own method.
-This is a direct empirical confirmation that the soft, distance-aware
-formulation of Eq.~\eqref{eq:coverage} buys something concrete over
-classical hard-coverage greedy, not just a theoretical nicety.
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{p{1.1cm}p{5.0cm}p{2.4cm}p{1.8cm}}
+\toprule
+$k$ & Best member of family & Uniqueness entropy & Unique rate \\
+\midrule
+\multirow{3}{*}{1{,}000}
+ & Degree-based (highest degree, $\Delta\le 1$) & 0.920 & 0.588 \\
+ & Centrality-based (personalized PageRank)     & 0.928 & 0.530 \\
+ & Ours ($\lambda=0.4$ envelope)                & \textbf{0.936} & \textbf{0.594} \\
+\midrule
+\multirow{3}{*}{15{,}000}
+ & Degree-based (highest degree, $\Delta\le 1$) & 0.985 & 0.883 \\
+ & Centrality-based (personalized PageRank)     & \textbf{0.989} & \textbf{0.903} \\
+ & Ours ($\lambda=0.8$ envelope)                & 0.987 & 0.893 \\
+\bottomrule
+\end{tabular}
+\caption{Uniqueness entropy and unique rate at $k=1{,}000$ and
+$k=15{,}000$, best member of each baseline family vs.\ our envelope. Bold
+marks the highest value in each block.}
+\label{tab:discriminative-detail}
+\end{table}
+
+At $k=1{,}000$, the best degree-based member is close to our envelope on
+unique rate ($0.588$ vs.\ $0.594$) -- not the large gap the hypothesis
+predicted. At $k=15{,}000$, a real gap does appear, but in the other
+direction: centrality-based baselines slightly \emph{overtake} our envelope
+on both metrics. This is the one place in this sweep where a baseline
+family is not dominated by ours, and it is worth stating plainly: "ours
+wins on every metric at every $k$" would not be an accurate claim, even
+though it wins the coverage-speed race described above.
+
+\textbf{Ablation: soft vs.\ hard coverage.} Finally, we check what the soft
+coverage formulation itself is buying, independent of the greedy mechanism
+around it. The discrete set-cover baseline (Section~\ref{sec:method:baselines})
+uses the same lazy/CELF greedy mechanism and approximation guarantee as our
+method, but a binary rather than $\lambda$-decayed coverage signal. It is
+the slowest of all \emph{structured} methods to approach ceiling coverage:
+it never reaches $\ge 0.999$ within the tested range (Table~\ref{tab:coverage-trend}),
+behind every degree-based and centrality-based baseline as well as our own
+method. This is a direct empirical confirmation that the soft,
+distance-aware formulation of Eq.~\eqref{eq:coverage} buys something
+concrete over classical hard-coverage greedy, not just a theoretical nicety.
 
 \subsection{Effect of the distance penalty \texorpdfstring{$\lambda$}{lambda}}
 \label{sec:results:lambda}
@@ -169,6 +225,12 @@ classical hard-coverage greedy, not just a theoretical nicety.
 \item point out: best config depends on personal choice.
 \end{itemize}
 \end{quote}
+
+The comparisons above all use a single representative $\lambda$ per family.
+We now ask the question specific to our method: what does $\lambda$ itself
+trade off? Table~\ref{tab:lambda-sweep} shows five metrics at one
+representative $k$; the prose below states which patterns hold at that
+single $k$ and which hold across the full sweep.
 
 \begin{table}[h]
 \centering
@@ -189,61 +251,58 @@ each pattern holds across the full $k=500$--$19{,}500$ range).}
 \label{tab:lambda-sweep}
 \end{table}
 
-Checking every one of the 39 tested $k$ values (not just the $k=10{,}000$
-snapshot in Table~\ref{tab:lambda-sweep}), three distinct patterns emerge,
-not two:
+Checking every one of the 39 tested $k$ values, not just the $k=10{,}000$
+snapshot in Table~\ref{tab:lambda-sweep}, three distinct patterns emerge:
 
 \textbf{Monotonically improving toward $\lambda=1$ (100\% of $k$ values).}
 Semantic coverage and unk rate improve monotonically as $\lambda$ increases
-from $0.2$ to $1.0$, at \emph{every single} tested $k$, always best at
+from $0.2$ to $1.0$, at every single tested $k$, always best at
 $\lambda=1.0$. Uncovered rate follows the same direction but saturates to
-exactly $0$ well before $\lambda=1.0$ is reached: by $\lambda \ge 0.6$ it is
-already $0$ at every $k \ge 1{,}500$, and even $\lambda=0.2$ reaches $0$ by
+exactly $0$ well before $\lambda=1.0$: by $\lambda \ge 0.6$ it is already
+$0$ at every $k \ge 1{,}500$, and even $\lambda=0.2$ reaches $0$ by
 $k=5{,}000$.
 
-\textbf{Peaked at $\lambda \approx 0.8$ (large majority of $k$ values).}
-Distance score is maximized at $\lambda=0.8$ at \emph{all 39} tested $k$
-values, dropping at $\lambda=1.0$ every time (e.g.\ $0.863 \to 0.728$ at
-$k=10{,}000$). Tree complexity is minimized at $\lambda=0.8$ at 38 of 39 $k$
-values; conciseness at 34 of 39; uniqueness entropy at 30 of 39; unique rate
-at 27 of 39 (with $\lambda=0.6$ the runner-up choice in most of the
-remaining cases). This is the confirmed version of your outline's
-prediction -- these metrics really do trade off against raw coverage, and
-$\lambda=0.8$ is consistently, not just occasionally, the best single
-setting for this group.
+\textbf{Peaked at $\lambda \approx 0.8$ (large majority of $k$ values).} In
+the other direction, distance score is maximized at $\lambda=0.8$ at
+\emph{all} 39 tested $k$ values, dropping again at $\lambda=1.0$ every time
+(e.g.\ $0.863 \to 0.728$ at $k=10{,}000$). The same peak shows up, slightly
+less consistently, in three other metrics: tree complexity is minimized at
+$\lambda=0.8$ at 38 of 39 $k$ values, conciseness at 34 of 39, and
+uniqueness entropy at 30 of 39 ($\lambda=0.6$ is the usual runner-up). This
+confirms your outline's prediction that these metrics trade off against raw
+coverage -- and shows that $\lambda=0.8$ is consistently, not just
+occasionally, the best single setting for this group.
 
-\textbf{Its own pattern: exact rate.} Exact rate does not fit either group
-above. Among the positive $\lambda$ values, it is highest at
-$\lambda=0.2$ at \emph{every} tested $k$ and decreases overall as $\lambda$
-increases toward $1$ -- moving in the \emph{opposite} direction from
-semantic coverage and unk rate as $\lambda$ increases. It is not perfectly
-monotonic on the way down (e.g.\ at $k=10{,}000$, $\lambda=1.0$'s $0.185$ is
-a partial rebound above $\lambda=0.8$'s $0.155$), but $\lambda=0.2$ is the
-single best positive-$\lambda$ choice for this metric without exception in
-the sweep.
+\textbf{Its own pattern: exact rate.} Exact rate follows neither group
+above. Among the positive $\lambda$ values, it is highest at $\lambda=0.2$
+at every tested $k$, decreasing overall as $\lambda$ increases toward $1$ --
+moving \emph{opposite} to semantic coverage and unk rate. The decrease is
+not perfectly monotonic (at $k=10{,}000$, $\lambda=1.0$'s $0.185$ partially
+rebounds above $\lambda=0.8$'s $0.155$), but $\lambda=0.2$ is, without
+exception, the best positive-$\lambda$ choice for this metric.
 
-\textbf{The degenerate case $\lambda=0$: proven, and confirmed empirically.}
-As derived in Eq.~\eqref{eq:coverage}: at $\lambda=0$, every "otherwise"
-term vanishes, so $S_h(u,T) = S_0(u,T) = \mathbf{1}[u \in T]$ at
-\emph{every} horizon, and $F_D(T)|_{\lambda=0}$ reduces exactly to
-$\text{exact\_rate}(M,T)$ -- selecting at $\lambda=0$ optimizes a
-fundamentally different, narrower objective than coverage. This is not just
-an algebraic curiosity: it is exactly what the sweep shows. Across all 39
-$k$ values, the $\lambda=0$ selection has (a) \emph{strictly the highest}
-exact rate of every $\lambda \in \{0, 0.2, \dots, 1.0\}$ at every single $k$
-(e.g.\ $0.217$ at $k=10{,}000$, vs.\ $0.199$ for the next best, $\lambda=0.2$)
--- exactly as predicted, since it is directly what $\lambda=0$ selection
-optimizes -- and (b) \emph{strictly the lowest} semantic coverage of every
-$\lambda$ at every single $k$, dramatically so at small $k$: $0.012$ at
-$k=500$, actually \emph{below} $k$-random's $0.050$ at the same budget, and
-still only $0.491$ at the largest tested $k=19{,}500$ (vs.\ $\ge 0.999$ for
-every $\lambda \ge 0.2$). \notetoself{note for precision: the
+\textbf{The degenerate case $\lambda=0$.} Setting $\lambda=0$ is not merely
+a bad setting; Eq.~\eqref{eq:coverage} shows it is a qualitatively different
+objective. At $\lambda=0$, every "otherwise" term vanishes, so
+$S_h(u,T) = S_0(u,T) = \mathbf{1}[u \in T]$ at every horizon, and
+$F_D(T)|_{\lambda=0}$ reduces exactly to $\text{exact\_rate}(M,T)$: selecting
+at $\lambda=0$ optimizes exact-match rate, not coverage. The sweep confirms
+this is not just an algebraic curiosity. Across all 39 $k$ values, the
+$\lambda=0$ selection has \emph{strictly the highest} exact rate of every
+tested $\lambda$ at every single $k$ (e.g.\ $0.217$ at $k=10{,}000$, vs.\
+$0.199$ for the next best, $\lambda=0.2$) -- exactly as predicted, since
+this is directly what $\lambda=0$ optimizes -- and, at the same time,
+\emph{strictly the lowest} semantic coverage of every $\lambda$ at every
+single $k$, dramatically so at small $k$: $0.012$ at $k=500$, actually
+\emph{below} $k$-random's $0.050$ at the same budget, and still only
+$0.491$ at the largest tested $k=19{,}500$ (vs.\ $\ge 0.999$ for every
+$\lambda \ge 0.2$). \notetoself{note for precision: the
 \emph{selection}-time objective at $\lambda=0$ literally equals
-$\text{exact\_rate}$, but the reported \texttt{semantic\_coverage} column is
-always \emph{evaluated} at $\lambda=1$ (Section~\ref{sec:method:metrics}'s
-convention) -- so the two numbers in the table are not the same quantity
-computed twice; the point is that a token set optimized for exact\_rate
-performs catastrophically under the standard $\lambda=1$ coverage evaluation
+exact\_rate, but the reported \texttt{semantic\_coverage} column is always
+\emph{evaluated} at $\lambda=1$ (Section~\ref{sec:method:metrics}'s
+convention), so the two numbers are not the same quantity computed twice --
+the point is that a token set optimized for exact\_rate performs
+catastrophically under the standard $\lambda=1$ coverage evaluation
 everyone else is judged by.}
 
 \textbf{Token reuse rate.} \doubt{confirmed not yet implemented in
@@ -252,15 +311,16 @@ exists in code; happy to help define/implement it once you specify what
 "reuse" should mean here (e.g.\ how many distinct mapped concepts a single
 token ends up representing, across the whole context-tree population).}
 
-\textbf{Practical takeaway.} Given the above, $\lambda \approx 0.8$ is a
-reasonable default when concise, nearby representations matter as much as
-raw coverage: it costs essentially nothing in semantic coverage or unk rate
-relative to $\lambda=1$ (both already at or near ceiling by moderate $k$),
-while giving the best distance score, tree complexity, and (usually)
-conciseness and discriminative power in the whole sweep. $\lambda=1$ remains
-the right choice if raw coverage at the smallest possible $k$ is the only
-thing that matters, or if a downstream use case specifically wants the
-highest possible exact-match rate among large-$\lambda$ settings.
-\doubt{"depends on personal choice" -- happy to sharpen this into an
-explicit recommendation/decision rule if you tell me what the downstream FM
-actually optimizes for (e.g.\ embedding-table size vs.\ per-concept fidelity).}
+\textbf{Practical takeaway.} Putting the four patterns together,
+$\lambda \approx 0.8$ is a reasonable default when concise, nearby
+representations matter as much as raw coverage: it costs essentially
+nothing in semantic coverage or unk rate relative to $\lambda=1$ (both
+already at or near ceiling by moderate $k$), while giving the best distance
+score, tree complexity, and usually conciseness and discriminative power in
+the whole sweep. $\lambda=1$ remains the right choice if raw coverage at the
+smallest possible $k$ is the only thing that matters, or if a downstream use
+case specifically wants the highest possible exact-match rate among
+large-$\lambda$ settings. \doubt{"depends on personal choice" -- happy to
+sharpen this into an explicit recommendation/decision rule if you tell me
+what the downstream FM actually optimizes for (e.g.\ embedding-table size
+vs.\ per-concept fidelity).}

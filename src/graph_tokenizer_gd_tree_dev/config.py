@@ -54,7 +54,12 @@ class Results:
     path: str = "D:/greedy_graph_data/metrics_results/"
 
     perf_baseline_path: str = f"{path}baseline_performance.parquet"
+
     perf_greedy_tree_path: str = f"{path}greedy_tree_performance.parquet"
+    perf_greedy_tree_path_append: str = f"{path}greedy_tree_performance_append.parquet"
+    perf_greedy_tree_path_all: str = f"{path}greedy_tree_performance_all.parquet"
+
+
     perf_k_rdn_path: str = f"{path}k_rdn_performance.parquet"
 
 

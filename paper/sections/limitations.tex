@@ -4,7 +4,12 @@
 % NOTE: item 3's meaning is now settled per your feedback -- it's about an
 % actual downstream assistive-clinical-decision task, NOT the expert
 % acceptability check (that's confirmed in-paper content, Section
-% method:expert-eval, and is a different thing).
+% method:expert-eval, and is a different thing). This revision pass added
+% short transition sentences between the four subsections; no content or
+% claims changed.
+
+The results above show what the method achieves on the metrics we defined.
+Four limitations bound how far those results should be read.
 
 \subsection{Graph structure constraints}
 
@@ -33,7 +38,8 @@ run into.}
 \end{itemize}
 \end{quote}
 
-Token selection (Section~\ref{sec:method:selection}) is transductive: it
+A second limitation concerns how the method generalizes beyond the mapped
+set it was run on. Token selection (Section~\ref{sec:method:selection}) is transductive: it
 optimizes coverage for a fixed, known $M$, and a token set selected for one
 institution's mapped concepts is not guaranteed to transfer to a different
 mapped set without re-running selection.
@@ -46,7 +52,8 @@ mapped set without re-running selection.
 \end{itemize}
 \end{quote}
 
-This paper evaluates tokenization quality intrinsically (the metrics of
+A third, related limitation concerns what "quality" was actually validated
+against. This paper evaluates tokenization quality intrinsically (the metrics of
 Section~\ref{sec:method:metrics}) and, directly, via clinical-expert
 acceptability ratings of the tokenized representation against the original
 concept (Section~\ref{sec:method:expert-eval}). What it does not do is
@@ -67,7 +74,8 @@ and only the first is in scope for this paper.}
 \end{itemize}
 \end{quote}
 
-The tokenizer's core mechanism -- \texttt{IS\_A} transparency, non-\texttt{IS\_A}
+Finally, the method's applicability is bounded by the same structural
+assumption made throughout the paper. The tokenizer's core mechanism -- \texttt{IS\_A} transparency, non-\texttt{IS\_A}
 subcontexts, and the coverage recursion's reliance on well-defined finite hop
 distances -- assumes an acyclic graph. It does not extend as-is to a
 vocabulary with cycles, or to a general knowledge graph where the

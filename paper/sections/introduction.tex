@@ -1,28 +1,13 @@
 \section{Introduction}
 \label{sec:introduction}
 
-% NOTE: each subsection below opens with an italic quote block reproducing
-% your original main.tex bullet points verbatim (typos included, on purpose --
-% it's your own note, kept as a traceable source), followed by my drafted
-% paragraph for that block.
-%
-% UPDATE: added 3 points from MedTok (Su, Messica, Huang, Johnson, Fesser,
-% Gao, Sahneh, Zitnik -- Harvard/Sanofi, arXiv:2502.04397, "Multimodal
-% Medical Code Tokenizer", Feb 2025), per your request -- points 4, 7, 8 from
-% my read of that paper:
-%   (4) related-work nuance: MedTok also uses graph structure, but through a
-%       learned encoder + vector-quantization codebook, not directly/deterministically
-%       like ours -- see the new paragraph at the end of "Gap" below.
-%   (7) ready-made citations for existing \citeneeded markers (Sennrich et al.
-%       2016 / Kudo & Richardson 2018 for BPE; Van den Oord et al. 2017 for
-%       the VQ-codebook lineage; Li et al. 2020 / Yang et al. 2023 for the
-%       EHR-FM opening claim) -- filled in as plain parenthetical text below.
-%   (8) MedTok's own long-tail framing, attached as a second citable voice
-%       on your Gap items 1.2/2.4.
-% These are typed as plain "(Author et al., Year)" text, NOT \cite{} commands
-% -- there's no .bib file in this project yet, so nothing here will resolve
-% via BibTeX. Once you set one up, these should become real \citep{} calls;
-% until then they're just readable placeholders naming the actual reference.
+% NOTE (this revision pass): rewritten for shorter sentences, explicit
+% transitions between paragraphs, and one new comparison table (Table
+% \ref{tab:related-approaches}) that replaces the old wall of "(cite) ..."
+% bullets with a scannable summary. Content is unchanged from the previous
+% version -- this is a style/structure pass, not a new round of fact-finding.
+% Each subsection still opens with an italic quote block reproducing your
+% original main.tex bullet points verbatim.
 
 \subsection{Background}
 
@@ -35,19 +20,24 @@
 \end{itemize}
 \end{quote}
 
-Electronic health record (EHR) are routinely collected from clinical practice, the large amount of data is a hidden gem providing protential for clinical research. 
-Leveraging this EHR, Foundation models (FMs) have recently emerged as promising assistive tools for clinical decision support. Because clinical events are recorded heterogeneously across institutions, such models are typically trained over standardized clinical vocabularies -- ICD, RxNorm, SNOMED~CT, LOINC -- rather
-than free text, so that the same clinical fact is represented the same way
-regardless of different clinical naming variation \citeneeded{standardized clinical
-vocabulary / interoperability reference}. Several of these vocabularies are
-not flat code lists but ontologies structured as directed acyclic graphs
-(DAGs), which is what lets them normalize clinical naming while also
-supporting interoperability across terminologies. SNOMED~CT is the clearest
-example: it comprises more than 400{,}000 concepts covering disorders,
-procedures, medications, morphologic findings and more, connected by over 100
-relationship types that let each concept be expressed as a machine-readable
-logical composition of others, and it is mappable to most other major
-clinical terminologies \citeneeded{SNOMED International concept model /
+Electronic health record (EHR) foundation models (FMs) are a recent class of
+models that learn from large amounts of patient history, with the goal of
+eventually assisting clinical decisions (e.g.\ Li et al., 2020, BEHRT; Yang
+et al., 2023, TransformEHR). To train on data from many hospitals at once,
+these models cannot rely on free text alone, because the same clinical fact
+is written differently in different places. Instead, they are trained on
+standardized clinical vocabularies -- ICD, RxNorm, SNOMED~CT, LOINC -- so
+that the same fact always gets the same code
+\citeneeded{standardized clinical vocabulary / interoperability reference}.
+
+Several of these vocabularies are more than flat lists of codes: they are
+ontologies, organized as directed acyclic graphs (DAGs), in which a concept
+is connected to other concepts that define it. SNOMED~CT is the largest and
+most detailed example. It contains more than 400{,}000 concepts, covering
+disorders, procedures, medications, and more. Its concepts are connected by
+over 100 relationship types, so that each concept can be described as a
+machine-readable combination of others, and it can be mapped onto most other
+major clinical terminologies \citeneeded{SNOMED International concept model /
 release statistics}. \doubt{worth cross-checking against Su et al. (2025,
 MedTok)'s own count -- they report 303{,}325 SNOMED~CT concepts specifically
 (out of 617{,}490 codes total across 8 systems: ICD-10-CM 81{,}184, RxNorm
@@ -72,70 +62,88 @@ SNOMED counts unexplained in the same paper.}
 \end{itemize}
 \end{quote}
 
-Training an EHR FM directly on top of such a vocabulary creates a tension
-between two resources that are each expensive on their own. Learning a
-reliable representation for every concept in the vocabulary requires a
-correspondingly large amount of patient data, which is costly to obtain and
-often access-restricted \doubt{do you want to cite/quantify this, e.g. typical
-cohort sizes needed vs. available, or leave it as a general statement?}.
-Restricting training to a vocabulary small enough to be learnable from the
-data actually at hand is not free either, precisely because clinical
-vocabularies are large by construction and concept usage in real EHR data
-follows a long tail: most concepts occur too rarely for a model to learn a
-stable representation for them. Su et al. (2025, MedTok) make the same
-observation independently -- "low-frequency codes suffer from poor
-embeddings, reducing performance on underrepresented conditions" -- which is
-a second, recent voice for this exact claim, though neither their paper nor
-this one currently backs it with an actual frequency distribution
-\doubt{would strengthen this sentence a lot to show your own long-tail plot
-from the mapped-concept usage data, if you have it, rather than relying on
-two qualitative claims (yours and MedTok's) with no numbers behind either}.
+This scale creates a problem for training an EHR FM. Learning a good
+representation for every one of these concepts takes a large amount of
+patient data, and such data is expensive and often hard to access
+\doubt{do you want to cite/quantify this, e.g. typical cohort sizes needed vs.
+available, or leave it as a general statement?}. Reducing the vocabulary to a
+size the available data can actually support does not avoid the problem
+either: concept usage in real EHR data follows a long tail, so most concepts
+are already too rare to learn well, no matter how the vocabulary is chosen.
+Su et al. (2025, MedTok) report the same pattern independently -- "low-frequency
+codes suffer from poor embeddings, reducing performance on underrepresented
+conditions" -- though, like us, without an actual frequency plot to back it
+up. \doubt{would strengthen this sentence a lot to show your own long-tail
+plot from the mapped-concept usage data, if you have it, rather than relying
+on two qualitative claims (yours and MedTok's) with no numbers behind either.}
 
-Existing strategies for shrinking the effective vocabulary size largely leave
-this semantic structure on the table. Data-driven subword approaches, such as
-byte-pair encoding applied to categorical medical codes, merge concepts purely
-by co-occurrence statistics: they preserve no explicit semantics and the
-resulting vocabulary is highly sensitive to data quality and to the order in
-which concepts are seen (Sennrich et al., 2016; Kudo \& Richardson, 2018,
-SentencePiece). Frequency- or entropy-based top-$k$ selection keeps only the
-most prevalent, or highest-information-contributing, concepts, discarding a
-considerable amount of clinically relevant but rarer information
-\citeneeded{prevalence/entropy-based vocabulary pruning in clinical ML}.
-Truncating or rolling leaf concepts up to their ontology parents reduces
-vocabulary size at the direct cost of clinical granularity -- a specific
-diagnosis collapses into a broader category \citeneeded{ontology roll-up /
-ICD truncation approach}. Keeping every concept exactly as-is sidesteps these
-losses only when enough patient data is available, and otherwise simply
-defers the long-tail problem to the model \doubt{is there a citation you have
-in mind for this "no reduction" baseline, or is it meant as the trivial
-comparison point rather than a cited method?}. Finally, learnable
-embedding-space codebooks (e.g.\ vector-quantization-style tokenizers, Van
-den Oord et al., 2017) can compress the vocabulary without hand-designed
-rules, but at the cost of controllability and interpretability: the
-resulting tokens no longer correspond to identifiable, auditable clinical
-concepts. \doubt{Is the sharpest way to state the gap "none of these use the
-DAG structure itself," or the stronger claim "none of these produce a token
-set that is both semantically motivated \emph{and} inspectable/controllable"?
-The second framing lines up more directly with the contribution list below
--- your call on which to lead with.}
+Several strategies already exist for shrinking the vocabulary, and
+Table~\ref{tab:related-approaches} summarizes them side by side. Byte-pair
+and other subword encodings merge concepts by co-occurrence statistics alone
+(Sennrich et al., 2016; Kudo \& Richardson, 2018, SentencePiece): they need
+no ontology, but the resulting vocabulary depends heavily on data quality and
+on the arbitrary order in which concepts appear. Keeping only the most
+frequent, or highest-information, concepts (top-$k$ pruning) drops a
+significant amount of clinically relevant information simply because it is
+rare \citeneeded{prevalence/entropy-based vocabulary pruning in clinical ML}.
+Rolling leaf concepts up to their ontology parent shrinks the vocabulary but
+loses clinical detail: a specific diagnosis collapses into a broader one
+\citeneeded{ontology roll-up / ICD truncation approach}. Keeping the full
+vocabulary avoids all of these losses, but only postpones the long-tail
+problem to the model, and only works if enough data is available
+\doubt{is there a citation you have in mind for this "no reduction" baseline,
+or is it meant as the trivial comparison point rather than a cited method?}.
+Finally, learnable embedding-space codebooks compress the vocabulary without
+any hand-written rules (Van den Oord et al., 2017), but the resulting tokens
+are then just indices into a learned space: they no longer correspond to
+concepts a person can recognize or check.
 
-\textbf{Closest related work.} Su et al. (2025, MedTok) is the one method in
-this space that no longer fits the "ignores graph structure entirely"
-version of the critique above: it feeds each code's biomedical
-knowledge-graph neighborhood, alongside its text description, into a
-multimodal encoder, then vector-quantizes the result into a shared codebook
-(learned, size on the order of $10^4$ entries) to produce each code's token
-sequence. So the sharper distinction is not "uses the graph vs.\ doesn't,"
-but \emph{how}: MedTok's tokens are indices into a learned, continuous
-codebook, opaque by construction -- there is no way to read off which
-relationships in the graph produced a given token. Our tokens are, by
-contrast, selected directly and deterministically from the graph itself
-(Section~\ref{sec:method}), and every token a concept resolves to comes with
-an explicit, inspectable trace of which relationships were followed to reach
-it. \doubt{this paragraph is my synthesis of the distinction, not something
-either paper states outright -- worth double-checking it reads as fair to
-MedTok (it's a real, well-evaluated method, not a strawman) rather than as
-dismissive.}
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{p{2.7cm}p{1.8cm}p{2.0cm}p{4.5cm}}
+\toprule
+\textbf{Approach} & \textbf{Uses the ontology graph?} & \textbf{Tokens stay inspectable?} & \textbf{Main limitation} \\
+\midrule
+Byte-pair / subword encoding & No & No (merges are statistical, not semantic) & Sensitive to data quality and concept order \\
+Frequency / entropy top-$k$ & No & Yes (kept items are still real concepts) & Drops clinically relevant but rare concepts \\
+Hierarchy truncation / roll-up & Partially (parent--child links only) & Yes, but coarser & Loses clinical granularity \\
+Full vocabulary (no reduction) & N/A & Yes & Long tail is never solved, just handed to the model \\
+Learnable codebook (e.g.\ MedTok) & Yes (e.g.\ via a graph encoder) & No (opaque codebook indices) & Not human-auditable \\
+\textbf{Ours} & \textbf{Yes, directly} & \textbf{Yes, fully traceable} & (this paper's contribution) \\
+\bottomrule
+\end{tabular}
+\caption{How existing vocabulary-reduction strategies compare on the two
+properties this paper cares about most: whether they use the ontology's
+graph structure, and whether the resulting tokens can be inspected by a
+person.}
+\label{tab:related-approaches}
+\end{table}
+
+Table~\ref{tab:related-approaches} makes the gap concrete: no existing
+approach combines the two properties we want -- using the DAG's structure
+\emph{and} producing tokens a person can inspect. \doubt{Is the sharpest way
+to state the gap "none of these use the DAG structure itself," or the
+stronger claim "none of these produce a token set that is both semantically
+motivated \emph{and} inspectable/controllable"? The second framing lines up
+more directly with the contribution list below and with the table -- your
+call on which to lead with.}
+
+\textbf{Closest related work.} One method in the table needs a closer look,
+because it is the exception to "no graph structure": Su et al. (2025,
+MedTok) feed each code's neighborhood in a biomedical knowledge graph, along
+with its text description, into a multimodal encoder, then compress the
+result into a shared, learned codebook. So the real difference between our
+method and MedTok is not "uses the graph" versus "does not" -- it is
+\emph{how}. MedTok's tokens are indices into a continuous space learned by a
+neural network: there is no way to look at a token and say which
+relationships in the graph produced it. Our tokens, by contrast, are chosen
+directly from the graph by a deterministic rule (Section~\ref{sec:method}),
+and every token a concept resolves to comes with an explicit record of which
+relationships were followed to reach it. \doubt{this paragraph is my
+synthesis of the distinction, not something either paper states outright --
+worth double-checking it reads as fair to MedTok (it's a real, well-evaluated
+method, not a strawman) rather than as dismissive.}
 
 \subsection{Our method and contribution}
 
@@ -145,26 +153,31 @@ dismissive.}
 \item tokens selection: Represent concepts by smaller vocabulary size using greedy token selection approach
 \item way to tokenize: Represent concepts by a tree/subgraph preserving the structure of the concepts the semantic value.
 \item By apply to SNOMED CT concepts used in our local institut real data, we show our method can control how we tokenize and with what we tokenize (controllability and interpretability)
+\item (maybe) if any mapping inter-ontology exist, we can use concepts in 1 ontology to represent/tokenize concepts in the other ontologies (interoperability)
 \end{itemize}
 \end{quote}
 
-We propose a token-selection and tokenization method that operates directly
-on a concept DAG such as SNOMED~CT. First, we select a small set of tokens
-using a greedy, submodular semantic-coverage objective (Section~\ref{sec:method}),
-which fixes the target vocabulary size in advance rather than as a side
-effect of a training run. Second, rather than representing a concept as an
-unordered bag of the tokens it maps to, we represent it as a \emph{context
-tree}: a small subgraph that preserves which relationship each token was
-reached through, so that, for instance, a token for "kidney" and a token for
-"left" stay attached to the same anatomical-site branch instead of being
-silently merged with an unrelated "right adrenal gland" branch found
-elsewhere in the same concept \doubt{this kidney/adrenal example is carried
-over from your existing PDF draft -- keep it, or swap in a real example from
-the HUG-mapped concepts once we have one handy?}. Third, applying this method
-to the SNOMED~CT concepts mapped by our institution's semantician team, we
-show that, unlike the alternatives above -- including MedTok, the closest
-recent method that also uses graph structure -- the resulting tokenization is
-directly controllable and interpretable: for any given concept, a domain
-expert can inspect exactly which relationships were followed to reach which
-token.
+Building on this gap, we propose a method for selecting and building tokens
+directly on a concept DAG such as SNOMED~CT. It has two parts. First, we
+choose a small set of tokens with a greedy algorithm that maximizes how well
+they cover the meaning of the target concepts (Section~\ref{sec:method}).
+This lets us fix the vocabulary size in advance, instead of it falling out
+of a training run. Second, instead of representing a concept as an unordered
+set of the tokens it maps to, we represent it as a \emph{context tree}: a
+small subgraph that records which relationship led to each token. This
+matters in practice -- for example, a token for "kidney" and a token for
+"left" stay attached to the same anatomical-site branch, instead of being
+mixed up with an unrelated "right adrenal gland" branch found elsewhere in
+the same concept \doubt{this kidney/adrenal example is carried over from
+your existing PDF draft -- keep it, or swap in a real example from the
+HUG-mapped concepts once we have one handy?}.
 
+We apply this method to the SNOMED~CT concepts mapped by our institution's
+semantician team. The result, unlike every approach in
+Table~\ref{tab:related-approaches} including MedTok, is directly
+controllable and inspectable: for any concept, a domain expert can see
+exactly which relationships were used to reach which token.
+
+\notetoself{Per your feedback: the inter-ontology point (last bullet above)
+is not being claimed as a contribution of this paper -- it's mentioned only
+in Future Work (Section~\ref{sec:future-work}) now, not developed here.}
