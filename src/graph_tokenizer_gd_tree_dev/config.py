@@ -58,9 +58,12 @@ class Results:
     perf_greedy_tree_path: str = f"{path}greedy_tree_performance.parquet"
     perf_greedy_tree_path_append: str = f"{path}greedy_tree_performance_append.parquet"
     perf_greedy_tree_path_all: str = f"{path}greedy_tree_performance_all.parquet"
-
-
     perf_k_rdn_path: str = f"{path}k_rdn_performance.parquet"
+
+    perf_all: str = f"{path}all_performance.parquet"
+    perf_all_csv: str = f"{path}all_performance.csv"
+    
+    perf_ranked_csv : str = f"{path}ranked_performance.csv"
 
 
 
