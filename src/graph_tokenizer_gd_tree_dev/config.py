@@ -65,6 +65,18 @@ class Results:
     
     perf_ranked_csv : str = f"{path}ranked_performance.csv"
 
+class HERODataVocabsTest:
+    path: str = "D:/greedy_graph_data/test_vocabs/"
+    vocab_count_patient: str = f"{path}vocab_preq_patient.parquet"
+    vocab_count_volumn: str = f"{path}vocab_volume.parquet"
+
+    subgraph_path: str = f"{path}subgraph_info/"
+    greedy_candidate_path: str = f"{path}candidates/"
+
+    perf_greedy_tree_path: str = f"{path}greedy_tree_performance.parquet"
+    rank_perf : str = f"{path}rank_perf.csv"
+
+
 
 
 class TimelineData:
