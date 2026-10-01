@@ -136,8 +136,7 @@ def expand(u, q, d, adj, T, D):
 def tokenize_all_rel(c, adj, T, D, id_to_label):
     root = Context(id_to_label, "ROOT", distance=0)
     expand(c, root, 0, adj, T, D)
-    # return collapse_redundant(root)
-    return root
+    return collapse_redundant(root)
 
 
 # --- semantic coverage (Eq. 1) ---------------------------------------------

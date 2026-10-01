@@ -68,7 +68,7 @@ class Results:
 class HERODataVocabsTest:
     path: str = "D:/greedy_graph_data/test_vocabs/"
     vocab_count_patient: str = f"{path}vocab_preq_patient.parquet"
-    vocab_count_volumn: str = f"{path}vocab_volume.parquet"
+    vocab_count_volumn: str = f"{path}vocab_volume_2017.parquet"
 
     subgraph_path: str = f"{path}subgraph_info/"
     greedy_candidate_path: str = f"{path}candidates/"
