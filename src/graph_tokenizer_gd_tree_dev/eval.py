@@ -30,6 +30,7 @@ def build_context_trees(M, adj, T, D, id_to_label=None):
     per graph and shared across calls, rather than each call re-deriving it from G.
     """
     labels = id_to_label or {}
+    T = set(T)  # expand() does `u in T` on every recursive call; on a list that's an O(|T|) scan each time
     return {c: tokenize_all_rel(c, adj, T, D, labels) for c in M}
 
 
