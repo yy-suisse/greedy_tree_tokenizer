@@ -59,15 +59,16 @@ def plot_ehr_summary(cov, cst, uniq, lt, rare_bins=("<10", "10-99"), rare=10, fn
          [(cov, "trunc_pct_codes", "truncation"), (cov, "ours_pct_codes", "ours")]),
         ("(b) Events represented (%) $\\uparrow$",
          [(cov, "trunc_pct_events", "truncation"), (cov, "ours_pct_events", "ours")]),
-        ("(c) Tokens per event $\\downarrow$",
-         [(cst, "trunc_tokens_per_event", "truncation"), (cst, "ours_tokens_per_event", "ours")]),
-        ("(d) Unique concepts (%) $\\uparrow$",
+        # order follows the Results text: coverage, uniqueness, rare concepts, then the cost
+        ("(c) Unique concepts (%) $\\uparrow$",
          [(uniq, "trunc_pct_codes", "truncation"), (uniq, "ours_flat_pct_codes", "ours_flat"),
           (uniq, "ours_tree_pct_codes", "ours")]),
-        ("(e) Rare concepts (<100 events)\nrepresented (%) $\\uparrow$",
+        ("(d) Rare concepts (<100 events)\nrepresented (%) $\\uparrow$",
          [(rs, "trunc_rep", "truncation"), (rs, "ours_rep", "ours")]),
-        (f"(f) Rare concepts whose rarest token\noccurs in $\\geq${rare} events (%) $\\uparrow$",
+        (f"(e) Rare concepts whose rarest token\noccurs in $\\geq${rare} events (%) $\\uparrow$",
          [(rs, "ours_ge", "ours")]),
+        ("(f) Tokens per event $\\downarrow$",
+         [(cst, "trunc_tokens_per_event", "truncation"), (cst, "ours_tokens_per_event", "ours")]),
     ]
     k_all = sorted(cov["k"].to_list())
     k_ticks = [k for k in (250, 1000, 5000) if k_all[0] <= k <= k_all[-1]] + [k_all[-1]]
