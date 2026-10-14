@@ -23,6 +23,11 @@ class TokenizerParam:
     rnd_iters: np.ndarray = np.arange(0, 20, 1)
     exclude_cpt: list = ["138875005"]
 
+    # distance decay grid for the status-dependent variant (same grid as the hop-based results)
+    lambdas: list = sorted({float(x) for x in np.round(np.arange(0.0, 1.05, 0.1), 1)}
+                           | {float(x) for x in np.round(np.arange(0.91, 1.0, 0.01), 2)})
+    lambdas_real_data: list = [float(x) for x in np.round(np.arange(0.6, 1.05, 0.1), 1)]
+
 
 class ProcessedGraph:
     path: str = "D:/greedy_graph_data/processed_graph_prim_fd/"
@@ -36,7 +41,7 @@ class ProcessedGraph:
 class CandidateLists:
     path: str = "D:/greedy_graph_data/"
 
-    path_greedy_tree: str = f"{path}greedy_tree_candidates/"
+    path_greedy_tree: str = f"{path}greedy_tree_candidates_prim_fd/"  # was greedy_tree_candidates/: notebook 2 would have overwritten the hop-based runs
 
     baseline_path: str = f"{path}baseline_candidates/"
     highest_degree: str = f"{baseline_path}highest_degree.parquet"
