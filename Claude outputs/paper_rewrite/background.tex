@@ -1,0 +1,31 @@
+\section{Background: SNOMED~CT}
+\label{sec:background}
+\label{sec:snomed}
+
+SNOMED~CT is the most comprehensive clinical terminology in use \cite{snomed2024starter}.
+The release we use contains more than 420,000 concepts, covering disorders, procedures, substances, body structures and more, connected by 113 relationship types.
+Concepts and relationships together form a DAG (Section~\ref{sec:method:problem}).
+
+\paragraph{Hierarchy and attributes.}
+Relationships are of two kinds.
+An \isa{} relationship $u \xrightarrow{\isa} v$ states that $u$ is a subtype of $v$; a concept may have several parents, so the hierarchy is a polyhierarchy.
+Every other relationship states the value of an attribute: $u \xrightarrow{R} v$, for $R$ such as \emph{finding site} or \emph{associated morphology}, means that the value of attribute $R$ for $u$ is $v$, not that $v$ is more general than $u$.
+For instance, \emph{Neoplasm of bone of upper limb} is a neoplasm (its associated morphology) located in the bone of the upper limb (its finding site), and a subtype of \emph{Neoplasm of bone} and of \emph{Structural abnormality of upper limb bone} (Figure~\ref{fig:shared-structure}).
+Our tokenizer treats the two kinds of edge differently (Section~\ref{sec:method:tokenizer}).
+
+\paragraph{Shared meaning.}
+Because meaning is carried by edges, two distinct concepts share part of their meaning when they reach the same concepts through the same relationships.
+\emph{Fracture of upper limb} and \emph{Neoplasm of bone of upper limb} are different disorders, yet both are subtypes of \emph{Structural abnormality of upper limb bone} and both have \emph{Bone structure of upper limb} as their finding site (Figure~\ref{fig:shared-structure}).
+This shared structure is what allows distinct concepts to share tokens: a rare concept can be described by the more frequent concepts it relates to.
+
+\paragraph{Definition status.}
+A \emph{fully defined} concept is equivalent to the conjunction of its relationships: any concept with the same relationships is the same concept.
+For a \emph{primitive} concept, the relationships are necessary but not sufficient, and part of its meaning is stated only by its name \cite{snomed2024editorial}.
+Replacing a primitive concept by the concepts it reaches therefore loses this unstated part, which bounds what any tokenization based on the graph can preserve (Sections~\ref{sec:method:score} and~\ref{sec:limitations}).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{paper/imgs/concept_relations.png}
+\caption{Two SNOMED~CT disorders (blue) and their direct neighbours. Upward edges are \isa{} relationships to more general concepts; downward edges are attribute relationships, whose targets are values of the attribute rather than more general concepts. The two disorders differ, yet share a parent (\emph{Structural abnormality of upper limb bone}) and a finding site (\emph{Bone structure of upper limb}), shown in red.}
+\label{fig:shared-structure}
+\end{figure}

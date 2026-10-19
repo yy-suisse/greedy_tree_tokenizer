@@ -1,0 +1,33 @@
+\section{Limitations and future work}
+\label{sec:limitations}
+
+\paragraph{What the graph does not state cannot be preserved.}
+The context trees and the coverage objective only reflect the relationships encoded in the ontology.
+This matters most for primitive concepts, whose relationships do not fully define them (Section~\ref{sec:snomed}), and SNOMED~CT has many of them: 64\% of the concepts of the release we use are primitive, and in the HERO data, primitive concepts make up 42\% of the release concepts and carry 88\% of their events.
+When a primitive concept is not itself a token, its tree loses the part of its meaning that no relationship states; \textit{hyperthyroidism} and \textit{sick-euthyroid syndrome}, two primitive concepts with the same relationships, receive the same tree (Section~\ref{sec:results:examples}).
+The status-dependent decay of Eq.~\eqref{eq:coverage-status} addresses this directly, since it charges exactly the hops where meaning can be lost; evaluating it is our next step.
+Two further simplifications come from our design rather than from the graph: all relationship types weigh the same in the objective, and context trees do not record how SNOMED~CT groups the attributes of a concept.
+Factors that depend on the relationship type fit the same framework (Section~\ref{sec:method:score}).
+
+\paragraph{Transductive and greedy selection.}
+The selection optimizes the coverage of a fixed set of concepts.
+A new concept can still be tokenized with an existing vocabulary, since Algorithm~\ref{alg:expand} applies to any concept of the graph, but the vocabulary was not chosen to cover it; a new institution or release may require a new run, which is inexpensive and needs no patient data.
+The selection also never removes a token, so hubs selected early remain even when later, more specific tokens cover the same concepts.
+The guarantee of Eq.~\eqref{eq:guarantee} bounds the resulting loss in coverage, but not in the other metrics; a pass that swaps out tokens with a small marginal loss could reduce this redundancy.
+
+\paragraph{No downstream or external validation.}
+We evaluate the tokenization intrinsically, with the metrics of Section~\ref{sec:method:metrics} and with semanticians on 100 concepts, not on a downstream clinical task.
+Whether a foundation model trained on our vocabulary predicts clinical outcomes better than one trained on the full or truncated vocabulary remains to be tested by pretraining experiments.
+All data also come from a single institution, whose mapping practice and concept distribution may differ elsewhere.
+Where mappings between ontologies exist, the same mechanism could also write the concepts of one terminology with tokens of another.
+
+\paragraph{Graph assumptions.}
+The method assumes that edges point from a concept to the concepts that describe it, and that the graph is acyclic (Section~\ref{sec:method:problem}).
+Because every traversal is bounded by $D$, it still terminates on a graph with cycles, but on a vocabulary with cycles or symmetric relationships, or on a general knowledge graph, the tokens reached from a concept need not describe it.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We showed that a small vocabulary of ontology concepts, selected by distance-aware greedy coverage and used through context trees, can represent every concept of clinical data while preserving most of its meaning.
+On real EHR data, this keeps the rare concepts of the long tail, which frequency truncation discards, by expressing them with tokens shared with frequent concepts.
+The resulting vocabularies are compact and auditable; whether they improve EHR foundation models is the next test.

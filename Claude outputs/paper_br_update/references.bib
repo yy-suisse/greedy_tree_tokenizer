@@ -1,0 +1,257 @@
+% ------------------------------------------------------------------
+% EHR foundation models and vocabularies
+% ------------------------------------------------------------------
+@article{li2020behrt,
+  title   = {{BEHRT}: Transformer for Electronic Health Records},
+  author  = {Li, Yikuan and Rao, Shishir and Solares, Jos{\'e} Roberto Ayala and Hassaine, Abdelaali and Ramakrishnan, Rema and Canoy, Dexter and Zhu, Yajie and Rahimi, Kazem and Salimi-Khorshidi, Gholamreza},
+  journal = {Scientific Reports},
+  volume  = {10},
+  pages   = {7155},
+  year    = {2020},
+  doi     = {10.1038/s41598-020-62922-y}
+}
+
+@article{yang2023transformehr,
+  title   = {{TransformEHR}: Transformer-Based Encoder-Decoder Generative Model to Enhance Prediction of Disease Outcomes Using Electronic Health Records},
+  author  = {Yang, Zhichao and Mitra, Avijit and Liu, Weisong and Berlowitz, Dan and Yu, Hong},
+  journal = {Nature Communications},
+  volume  = {14},
+  pages   = {7857},
+  year    = {2023},
+  doi     = {10.1038/s41467-023-43715-z}
+}
+
+@article{steinberg2021language,
+  title   = {Language Models Are an Effective Representation Learning Technique for Electronic Health Record Data},
+  author  = {Steinberg, Ethan and Jung, Ken and Fries, Jason A. and Corbin, Conor K. and Pfohl, Stephen R. and Shah, Nigam H.},
+  journal = {Journal of Biomedical Informatics},
+  volume  = {113},
+  pages   = {103637},
+  year    = {2021},
+  doi     = {10.1016/j.jbi.2020.103637}
+}
+
+@article{renc2024ethos,
+  title   = {Zero Shot Health Trajectory Prediction Using Transformer},
+  author  = {Renc, Pawel and Jia, Yugang and Samir, Anthony E. and Was, Jaroslaw and Li, Quanzheng and Bates, David W. and Sitek, Arkadiusz},
+  journal = {npj Digital Medicine},
+  volume  = {7},
+  year    = {2024},
+  doi     = {10.1038/s41746-024-01235-0}
+}
+
+@misc{waxler2025comet,
+  title         = {Generative Medical Event Models Improve with Scale},
+  author        = {Waxler, Shane and Blazek, Paul and White, Davis and Sneider, Daniel and Chung, Kevin and Nagarathnam, Mani and Williams, Patrick and Voeller, Hank and Wong, Karen and Swanhorst, Matthew and others},
+  year          = {2025},
+  eprint        = {2508.12104},
+  archivePrefix = {arXiv}
+}
+
+@article{redekop2025zeroshot,
+  title   = {Zero-Shot Medical Event Prediction Using a Generative Pretrained Transformer on Electronic Health Records},
+  author  = {Redekop, Ekaterina and Wang, Zichen and Kulkarni, Rushikesh and Pleasure, Mara and Chin, Aaron and Hassanzadeh, Hamid Reza and Hill, Brian L. and Emami, Melika and Speier, William and Arnold, Corey W.},
+  journal = {Journal of the American Medical Informatics Association},
+  pages   = {ocaf160},
+  year    = {2025},
+  doi     = {10.1093/jamia/ocaf160}
+}
+
+@misc{unistruct,
+  title         = {Representation Learning of Structured Data for Medical Foundation Models},
+  author        = {Dwivedi, Vijay Prakash and Schlegel, Viktor and Liu, Andy T. and Nguyen, Thanh-Tung and Kashyap, Abhinav Ramesh and Wei, Jeng and Yin, Wei-Hsian and Winkler, Stefan and Tan, Robby T.},
+  year          = {2024},
+  eprint        = {2410.13351},
+  archivePrefix = {arXiv},
+  note          = {NeurIPS 2024 Workshop on Unifying Representations in Neural Models (UniReps)}
+}
+
+@inproceedings{choi2017gram,
+  title     = {{GRAM}: Graph-Based Attention Model for Healthcare Representation Learning},
+  author    = {Choi, Edward and Bahadori, Mohammad Taha and Song, Le and Stewart, Walter F. and Sun, Jimeng},
+  booktitle = {Proceedings of the 23rd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining},
+  pages     = {787--795},
+  year      = {2017},
+  doi       = {10.1145/3097983.3098126}
+}
+
+@inproceedings{su2025medtok,
+  title     = {Multimodal Medical Code Tokenizer},
+  author    = {Su, Xiaorui and Messica, Shvat and Huang, Yepeng and Johnson, Ruth and Fesser, Lukas and Gao, Shanghua and Sahneh, Faryad and Zitnik, Marinka},
+  booktitle = {Proceedings of the 42nd International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {267},
+  pages     = {57030--57045},
+  publisher = {PMLR},
+  year      = {2025}
+}
+
+% ------------------------------------------------------------------
+% Tokenization, vocabulary size, long tail
+% ------------------------------------------------------------------
+@inproceedings{sennrich2016bpe,
+  title     = {Neural Machine Translation of Rare Words with Subword Units},
+  author    = {Sennrich, Rico and Haddow, Barry and Birch, Alexandra},
+  booktitle = {Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics},
+  pages     = {1715--1725},
+  year      = {2016},
+  doi       = {10.18653/v1/P16-1162}
+}
+
+@inproceedings{kudo2018sentencepiece,
+  title     = {{SentencePiece}: A Simple and Language Independent Subword Tokenizer and Detokenizer for Neural Text Processing},
+  author    = {Kudo, Taku and Richardson, John},
+  booktitle = {Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing: System Demonstrations},
+  pages     = {66--71},
+  year      = {2018},
+  doi       = {10.18653/v1/D18-2012}
+}
+
+@inproceedings{gowda2020finding,
+  title     = {Finding the Optimal Vocabulary Size for Neural Machine Translation},
+  author    = {Gowda, Thamme and May, Jonathan},
+  booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2020},
+  pages     = {3955--3964},
+  year      = {2020},
+  doi       = {10.18653/v1/2020.findings-emnlp.352}
+}
+
+@inproceedings{land2024fishing,
+  title     = {Fishing for {Magikarp}: Automatically Detecting Under-Trained Tokens in Large Language Models},
+  author    = {Land, Sander and Bartolo, Max},
+  booktitle = {Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing},
+  year      = {2024},
+  doi       = {10.18653/v1/2024.emnlp-main.649}
+}
+
+@article{zhang2023longtailed,
+  title   = {Deep Long-Tailed Learning: A Survey},
+  author  = {Zhang, Yifan and Kang, Bingyi and Hooi, Bryan and Yan, Shuicheng and Feng, Jiashi},
+  journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  volume  = {45},
+  number  = {9},
+  year    = {2023}
+}
+
+@inproceedings{vaswani2017attention,
+  title     = {Attention Is All You Need},
+  author    = {Vaswani, Ashish and Shazeer, Noam and Parmar, Niki and Uszkoreit, Jakob and Jones, Llion and Gomez, Aidan N. and Kaiser, {\L}ukasz and Polosukhin, Illia},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {30},
+  year      = {2017}
+}
+
+@inproceedings{vandenoord2017vqvae,
+  title     = {Neural Discrete Representation Learning},
+  author    = {van den Oord, Aaron and Vinyals, Oriol and Kavukcuoglu, Koray},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {30},
+  year      = {2017}
+}
+
+@inproceedings{galkin2022nodepiece,
+  title     = {{NodePiece}: Compositional and Parameter-Efficient Representations of Large Knowledge Graphs},
+  author    = {Galkin, Mikhail and Denis, Etienne and Wu, Jiapeng and Hamilton, William L.},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2022}
+}
+
+% ------------------------------------------------------------------
+% Submodular optimization
+% ------------------------------------------------------------------
+@article{nemhauser1978analysis,
+  title   = {An Analysis of Approximations for Maximizing Submodular Set Functions---{I}},
+  author  = {Nemhauser, George L. and Wolsey, Laurence A. and Fisher, Marshall L.},
+  journal = {Mathematical Programming},
+  volume  = {14},
+  number  = {1},
+  pages   = {265--294},
+  year    = {1978},
+  doi     = {10.1007/BF01588971}
+}
+
+@incollection{minoux1978accelerated,
+  title     = {Accelerated Greedy Algorithms for Maximizing Submodular Set Functions},
+  author    = {Minoux, Michel},
+  booktitle = {Optimization Techniques},
+  series    = {Lecture Notes in Control and Information Sciences},
+  volume    = {7},
+  pages     = {234--243},
+  publisher = {Springer},
+  year      = {1978}
+}
+
+@article{feige1998threshold,
+  title   = {A Threshold of $\ln n$ for Approximating Set Cover},
+  author  = {Feige, Uriel},
+  journal = {Journal of the ACM},
+  volume  = {45},
+  number  = {4},
+  pages   = {634--652},
+  year    = {1998},
+  doi     = {10.1145/285055.285059}
+}
+
+@incollection{krause2014submodular,
+  title     = {Submodular Function Maximization},
+  author    = {Krause, Andreas and Golovin, Daniel},
+  booktitle = {Tractability: Practical Approaches to Hard Problems},
+  editor    = {Bordeaux, Lucas and Hamadi, Youssef and Kohli, Pushmeet},
+  pages     = {71--104},
+  publisher = {Cambridge University Press},
+  year      = {2014}
+}
+
+% ------------------------------------------------------------------
+% Graph baselines
+% ------------------------------------------------------------------
+@techreport{page1999pagerank,
+  title       = {The {PageRank} Citation Ranking: Bringing Order to the Web},
+  author      = {Page, Lawrence and Brin, Sergey and Motwani, Rajeev and Winograd, Terry},
+  institution = {Stanford InfoLab},
+  year        = {1999}
+}
+
+@inproceedings{haveliwala2002topic,
+  title     = {Topic-Sensitive {PageRank}},
+  author    = {Haveliwala, Taher H.},
+  booktitle = {Proceedings of the 11th International Conference on World Wide Web},
+  pages     = {517--526},
+  year      = {2002},
+  doi       = {10.1145/511446.511513}
+}
+
+@article{freeman1978centrality,
+  title   = {Centrality in Social Networks: Conceptual Clarification},
+  author  = {Freeman, Linton C.},
+  journal = {Social Networks},
+  volume  = {1},
+  number  = {3},
+  pages   = {215--239},
+  year    = {1978},
+  doi     = {10.1016/0378-8733(78)90021-7}
+}
+
+@book{wasserman1994social,
+  title     = {Social Network Analysis: Methods and Applications},
+  author    = {Wasserman, Stanley and Faust, Katherine},
+  publisher = {Cambridge University Press},
+  year      = {1994}
+}
+
+% ------------------------------------------------------------------
+% SNOMED CT documentation
+% ------------------------------------------------------------------
+@misc{snomed2024starter,
+  title        = {{SNOMED CT} Starter Guide},
+  author       = {{SNOMED International}},
+  howpublished = {\url{https://docs.snomed.org/snomed-ct-practical-guides/snomed-ct-starter-guide}},
+  note         = {Accessed October 2026}
+}
+
+@misc{snomed2024editorial,
+  title        = {{SNOMED CT} Editorial Guide: Sufficiently Defined vs Primitive Concept},
+  author       = {{SNOMED International}},
+  howpublished = {\url{https://docs.snomed.org/education/snomed-ct-education-editorial-guide/readme/authoring/general-modeling/sufficiently-defined-vs-primitive-concept}},
+  note         = {Accessed October 2026}
+}

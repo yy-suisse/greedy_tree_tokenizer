@@ -1,0 +1,415 @@
+\section{Method}
+\label{sec:method}
+
+Our goal is to represent the concepts of an ontology with a small vocabulary of the ontology's own concepts, while preserving as much of their meaning as possible.
+Section~\ref{sec:method:problem} states the problem.
+Sections~\ref{sec:method:candidates}--\ref{sec:method:selection} select the vocabulary, Section~\ref{sec:method:tokenizer} writes each concept with it, and Section~\ref{sec:method:metrics} measures how much meaning is preserved.
+Sections~\ref{sec:method:baselines}--\ref{sec:method:expert} describe the three experiments: a benchmark against graph baselines, an application to real EHR data, and an expert evaluation.
+
+% ------------------------------------------------------------------
+\subsection{Problem statement}
+\label{sec:method:problem}
+
+We model the ontology as a directed acyclic graph (DAG) $G = (V, E)$ with typed edges, $E \subseteq V \times \mathcal{R} \times V$.
+An edge $(u, R, v)$ states that $v$ is a parent of $u$ ($R = \isa$) or the value of one of its attributes ($R \neq \isa$; Section~\ref{sec:snomed}).
+Edges therefore point from a concept to the concepts that describe it, and acyclicity guarantees that following them never leads back to the starting concept.
+The hop distance $d(u, v)$ is the number of edges on a shortest directed path from $u$ to $v$, over all relationship types.
+
+Let $M \subseteq V$ be the concepts to represent; in our case, the concepts to which the codes of the clinical data are mapped.
+Given a token budget $k$, we look for a token set $T \subseteq V$ of $k$ concepts such that every concept in $M$ can be described by the tokens it reaches, with as little loss of meaning as possible.
+Because tokens are concepts of the ontology itself, every token has a known meaning that a domain expert can read.
+Appendix~\ref{app:notation} lists the notation.
+
+% ------------------------------------------------------------------
+\subsection{Candidate pool}
+\label{sec:method:candidates}
+
+A concept can only be described by the concepts it reaches along the edges, and its meaning fades with each hop.
+We therefore draw tokens from the concepts within $D$ hops of $M$:
+\[
+V_D = M \cup \{\, u \in V \setminus \{r\} : d(m, u) \le D \text{ for some } m \in M \,\},
+\]
+where $r$ is the root concept, which every concept reaches and which carries no meaning.
+We write $G_D = (V_D, E_D)$ for the subgraph induced by $V_D$.
+A larger hop radius $D$ admits more general candidates at a higher computational cost; Section~\ref{sec:setup} reports the value we use.
+
+% ------------------------------------------------------------------
+\subsection{Semantic coverage with distance decay}
+\label{sec:method:score}
+
+To select tokens, we need a score of how well a token set $T$ preserves the meaning of a concept.
+Let $\mathrm{Out}(u)$ be the outgoing edges of $u$ in $G_D$ and $\deg^+(u) = |\mathrm{Out}(u)|$ its out-degree.
+We define the \emph{semantic coverage} $S_h(u, T) \in [0, 1]$ of a concept $u$ recursively over the horizon $h \in \{0, \dots, D\}$, the number of hops still allowed.
+At horizon~0, a concept is covered only if it is a token, $S_0(u, T) = \mathbf{1}[u \in T]$, and for $h \ge 1$,
+\begin{equation}
+S_h(u, T) =
+\begin{cases}
+1, & u \in T, \\[2pt]
+0, & u \notin T \text{ and } \deg^+(u) = 0, \\[2pt]
+\dfrac{\lambda}{\deg^+(u)} \displaystyle\sum_{(u,R,v) \in \mathrm{Out}(u)} S_{h-1}(v, T), & \text{otherwise,}
+\end{cases}
+\label{eq:coverage}
+\end{equation}
+where $\lambda \in [0, 1]$ is the \emph{distance decay}.
+A token is fully covered, a concept that is not a token and has no outgoing edge is not covered, and any other concept takes the average coverage of its out-neighbours, multiplied by $\lambda$ for the hop.
+
+Equivalently, $S_D(m, T)$ is the expected value of $\lambda^j$ over random walks that start at $m$ and follow a uniformly chosen outgoing edge at each step, where $j$ is the step at which the walk first meets a token (the value is 0 if it meets none within $D$ steps; Appendix~\ref{app:submodular}).
+Each walk follows one strand of the concept's definition, and each hop replaces the current concept by a more general one or by one of its attribute values, so part of the meaning is lost at every hop.
+With $\lambda = 1$, a walk counts fully as soon as it reaches a token, however far away; with $\lambda < 1$, near tokens count more than distant ones; with $\lambda = 0$, only concepts that are themselves tokens are covered.
+
+The selection objective is the mean coverage of the concepts to represent,
+\[
+F_D(T) = \frac{1}{|M|} \sum_{m \in M} S_D(m, T).
+\]
+$F_D$ is normalized ($F_D(\varnothing) = 0$), monotone (adding a token never lowers it) and submodular (the gain from adding a token never grows as more tokens are selected); Appendix~\ref{app:submodular} gives the proof.
+
+\paragraph{Status-dependent decay.}
+The decay need not be the same for every hop.
+In SNOMED~CT, a fully defined concept is equivalent to the conjunction of its relationships, whereas the relationships of a primitive concept are necessary but not sufficient to define it (Section~\ref{sec:snomed}).
+A hop into a fully defined concept therefore rewrites the meaning without losing any of it, whereas a hop into a primitive concept is where meaning can be lost.
+This is expressed by replacing $\lambda$ in Eq.~\eqref{eq:coverage} with a factor that depends on the target of the hop:
+\begin{equation}
+S_h(u, T) = \frac{1}{\deg^+(u)} \sum_{(u,R,v) \in \mathrm{Out}(u)} \lambda(v)\, S_{h-1}(v, T),
+\qquad
+\lambda(v) =
+\begin{cases}
+1, & v \text{ fully defined},\\
+\lambda, & v \text{ primitive}.
+\end{cases}
+\label{eq:coverage-status}
+\end{equation}
+A walk then contributes the product of the factors of its hops up to its first token.
+Since every factor lies in $[0, 1]$, the proof of Appendix~\ref{app:submodular} holds unchanged, and so do the selection algorithm and its guarantee (Section~\ref{sec:method:selection}).
+The same holds for any factor in $[0, 1]$ attached to an edge, for instance one that depends on the relationship type.
+In this paper, we use the uniform decay of Eq.~\eqref{eq:coverage}, which needs no concept status and applies to any DAG ontology.
+
+% ------------------------------------------------------------------
+\subsection{Lazy greedy token selection}
+\label{sec:method:selection}
+
+Greedy selection builds $T$ one token at a time, adding at each step the candidate $t \in V_D \setminus T$ with the largest marginal gain $\Delta(t \mid T) = F_D(T \cup \{t\}) - F_D(T)$.
+Because $F_D$ is monotone and submodular, the greedy set $T_k$ is within a factor $1 - 1/e$ of the best set of the same size \cite{nemhauser1978analysis}:
+\begin{equation}
+F_D(T_k) \ge \Big(1 - \tfrac{1}{e}\Big) \max_{T \subseteq V_D,\ |T| \le k} F_D(T).
+\label{eq:guarantee}
+\end{equation}
+The guarantee concerns the objective $F_D$ only; the context trees and the metrics of Section~\ref{sec:method:metrics} are computed separately, and the guarantee does not extend to them.
+Submodularity also allows lazy evaluation \cite{minoux1978accelerated}.
+A gain computed earlier is an upper bound on the current gain of the same candidate, so at each step only the candidate with the highest bound is re-evaluated: it is selected if its updated gain is still the highest, and is put back with its updated gain otherwise.
+Lazy greedy returns the same tokens as plain greedy without re-evaluating every candidate at every step.
+
+Each gain is computed incrementally.
+Adding $t$ changes the coverage only of the concepts that reach $t$ within $D$ hops, so the change is propagated backward from $t$ along incoming edges, one hop per round, and touches only this reverse neighbourhood $R_D(t)$.
+One evaluation costs $O(D \cdot |E(R_D(t))|)$, where $E(R_D(t))$ are the edges among the concepts of $R_D(t)$, instead of $O(D(|V_D| + |E_D|))$ for a full recomputation; in a sparse graph such as SNOMED~CT, $R_D(t)$ is usually small.
+Appendix~\ref{app:algorithms} gives the algorithms.
+
+Finally, greedy selection never removes a token, so the token set for any budget is a prefix of the same ranking: one run gives the vocabulary for every budget $k$.
+
+% ------------------------------------------------------------------
+\subsection{Context trees}
+\label{sec:method:tokenizer}
+
+Once $T$ is fixed, each concept of $M$ must be written with tokens.
+The simplest representation is the flat set of tokens that a concept reaches, but this set loses which relationship led to which token.
+In Figure~\ref{fig:context-tree}a, a disorder has two finding sites, the left kidney and the right adrenal gland.
+Its flat set $\{\textit{kidney}, \textit{adrenal gland}, \textit{left}, \textit{right}\}$ cannot tell it apart from a disorder of the right kidney and the left adrenal gland.
+The same loss occurs whenever a token is reached through a chain of attributes, as for the laterality of any paired body structure.
+
+We therefore represent each concept by a \emph{context tree}, built by a forward traversal from the concept, bounded by $D$, with three rules:
+\begin{itemize}
+    \item \isa{} edges are \emph{transparent}: a parent describes the same aspect of the concept at a more general level, so the search continues in the current context;
+    \item every other edge $(u, R, v)$ opens a \emph{subcontext} keyed by $(R, v)$, since it introduces a new aspect of the definition;
+    \item each branch stops at its first token, which is attached to the current context together with its \emph{depth}, the number of hops from the concept; a branch that reaches depth $D$, or a concept without outgoing edges, without meeting a token is marked \emph{uncovered}.
+\end{itemize}
+In Figure~\ref{fig:context-tree}a, each finding site opens its own subcontext, so \textit{left} stays with \textit{kidney} and \textit{right} with \textit{adrenal gland}.
+
+Algorithm~\ref{alg:expand} implements these rules; it is called once per concept as \textsc{Expand}$(m, q_0, 0)$, with an empty initial context $q_0$.
+Two details matter.
+The token test comes before the depth test, so a token at depth $D$ is accepted, as in Eq.~\eqref{eq:coverage}.
+Attribute edges are expanded before \isa{} edges, and a pair $(R, v)$ already present in the current context is not expanded again: SNOMED~CT concepts often restate the attributes of their parents, and this rule keeps one subcontext per attribute, at the level of the child.
+Figure~\ref{fig:context-tree}b traces the algorithm on a toy graph; the resulting tree, written as a nested expression, is $\big(t_A,\ R_1(t_B,\ R_2(\varnothing))\big)$, where $\varnothing$ marks an uncovered branch.
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[c]{0.04\linewidth}\small (a)\end{minipage}%
+\begin{minipage}[c]{0.54\linewidth}
+\centering
+\begin{tikzpicture}[
+  concept/.style={draw, rounded corners, align=center, font=\footnotesize, inner sep=3pt},
+  token/.style={concept, double, double distance=1.2pt},
+  rel/.style={-{Stealth[length=5pt]}},
+  lab/.style={font=\scriptsize, inner sep=1.5pt}
+]
+\node[concept] (m) at (0,0) {$m$};
+\node[concept] (lk) at (2.7,1.2) {left kidney\\structure};
+\node[concept] (ra) at (2.7,-1.2) {right adrenal\\gland structure};
+\node[token] (k) at (5.9,1.8) {kidney};
+\node[token] (l) at (5.9,0.6) {left};
+\node[token] (ag) at (5.9,-0.6) {adrenal\\gland};
+\node[token] (r) at (5.9,-1.8) {right};
+\draw[rel] (m) -- node[lab, sloped, above, pos=0.45] {finding site} (lk);
+\draw[rel] (m) -- node[lab, sloped, above, pos=0.45] {finding site} (ra);
+\draw[rel] (lk) -- node[lab, sloped, above] {\texttt{IS\_A}} (k);
+\draw[rel] (lk) -- node[lab, sloped, below, pos=0.4] {laterality} (l);
+\draw[rel] (ra) -- node[lab, sloped, above] {\texttt{IS\_A}} (ag);
+\draw[rel] (ra) -- node[lab, sloped, below, pos=0.4] {laterality} (r);
+\end{tikzpicture}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.38\linewidth}
+\begin{forest}
+  for tree={font=\footnotesize, grow'=0, folder, folder indent=0.6em, inner sep=1.5pt},
+  tok/.style={draw, double, double distance=1pt, rounded corners=2pt}
+  [{$q_0$}
+    [{finding site $[q_1]$}
+      [kidney, tok]
+      [{laterality $[q_2]$}
+        [left, tok]]]
+    [{finding site $[q_3]$}
+      [{adrenal gland}, tok]
+      [{laterality $[q_4]$}
+        [right, tok]]]]
+\end{forest}
+\end{minipage}
+
+\vspace{1.2em}
+\begin{minipage}[c]{0.04\linewidth}\small (b)\end{minipage}%
+\begin{minipage}[c]{0.54\linewidth}
+\centering
+\begin{tikzpicture}[
+  concept/.style={draw, rounded corners, align=center, font=\footnotesize, inner sep=3pt, minimum width=2.2em},
+  token/.style={concept, double, double distance=1.2pt},
+  rel/.style={-{Stealth[length=5pt]}},
+  lab/.style={font=\scriptsize, inner sep=1.5pt}
+]
+\node[concept] (m) at (0,0) {$m$};
+\node[concept] (a) at (2.2,0.9) {$a$};
+\node[concept] (b) at (2.2,-0.9) {$b$};
+\node[token] (tA) at (4.6,0.9) {$t_A$};
+\node[token] (tB) at (4.6,-0.35) {$t_B$};
+\node[concept] (z) at (4.6,-1.45) {$z$};
+\draw[rel] (m) -- node[lab, sloped, above] {\texttt{IS\_A}} (a);
+\draw[rel] (m) -- node[lab, sloped, below] {$R_1$} (b);
+\draw[rel] (a) -- node[lab, above] {\texttt{IS\_A}} (tA);
+\draw[rel] (b) -- node[lab, sloped, above] {\texttt{IS\_A}} (tB);
+\draw[rel] (b) -- node[lab, sloped, below] {$R_2$} (z);
+\end{tikzpicture}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.38\linewidth}
+\begin{forest}
+  for tree={font=\footnotesize, grow'=0, folder, folder indent=0.6em, inner sep=1.5pt},
+  tok/.style={draw, double, double distance=1pt, rounded corners=2pt}
+  [{$q_0$}
+    [{$t_A$}, tok]
+    [{$R_1$ $[q_1]$}
+      [{$t_B$}, tok]
+      [{$R_2$ $[q_2]$}
+        [{uncovered ($\varnothing$)}]]]]
+\end{forest}
+\end{minipage}
+\caption{Context trees. Left: the graph around a concept $m$; double-bordered concepts are tokens. Right: the context tree of $m$.
+(a)~Why trees are needed: each \emph{finding site} edge opens its own subcontext, so \textit{left} stays with \textit{kidney} and \textit{right} with \textit{adrenal gland}; the flat set $\{\textit{kidney}, \textit{adrenal gland}, \textit{left}, \textit{right}\}$ loses this pairing.
+(b)~\textsc{Expand} on a toy graph with $D = 2$ and $T = \{t_A, t_B\}$: \isa{} keeps $t_A$ in the initial context $q_0$, $R_1$ opens $q_1$, which holds $t_B$, and $R_2$ opens $q_2$, whose branch reaches depth $D$ at the non-token $z$ and is uncovered.}
+\label{fig:context-tree}
+\end{figure}
+
+\begin{algorithm}[t]
+\caption{\textsc{Expand}$(u, q, \ell)$: builds the context tree of a concept $m$, called as \textsc{Expand}$(m, q_0, 0)$; $\ell$ counts the hops from $m$.}
+\label{alg:expand}
+\begin{algorithmic}[1]
+\Procedure{Expand}{$u, q, \ell$}
+    \If{$u \in T$} \Comment{token test first: a token at depth $D$ is accepted}
+        \State attach $u$ as a token of context $q$ at depth $\ell$
+        \State \Return
+    \EndIf
+    \If{$\ell = D$ \textbf{or} $\mathrm{Out}(u) = \varnothing$}
+        \State mark this branch of $q$ as uncovered
+        \State \Return
+    \EndIf
+    \ForAll{$(u, R, v) \in \mathrm{Out}(u)$, attribute edges before \texttt{IS\_A} edges}
+        \If{$R = \texttt{IS\_A}$}
+            \State \Call{Expand}{$v, q, \ell + 1$} \Comment{transparent: same context}
+        \ElsIf{$q$ has no subcontext keyed by $(R, v)$}
+            \State create subcontext $q'$ of $q$ keyed by $(R, v)$
+            \State \Call{Expand}{$v, q', \ell + 1$}
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+% ------------------------------------------------------------------
+\subsection{Evaluating a tokenization}
+\label{sec:method:metrics}
+
+A tokenizer must meet four requirements at once: represent every concept, keep its meaning, keep concepts apart, and do so with short representations.
+These requirements pull against each other under a fixed budget, so no single number captures the quality of a tokenization.
+We therefore evaluate every token set with four core metrics, one per requirement (Table~\ref{tab:metrics}), and compare methods on all four jointly (Section~\ref{sec:results:benchmark}).
+
+For a concept $m$, let $n_m$ be the number of tokens in its context tree, counting a token each time it appears, and $u_m$ the number of uncovered branches.
+The \emph{signature} $\sigma_m$ of the tree is its nested structure of relationships, tokens and uncovered branches, without depths or order; we write $N_s$ for the number of concepts of $M$ whose signature is $s$.
+The core metrics are computed per concept and averaged over $M$.
+
+\paragraph{Represent every concept: unknown rate.}
+The unknown rate is the share of concepts without any token ($n_m = 0$).
+Like out-of-vocabulary words, these concepts lose all their information, so a tokenizer should leave none.
+
+\paragraph{Keep the meaning: proximity-coverage score.}
+A represented concept still loses meaning in two ways: whole branches of its definition are lost when no token is found, and specificity is lost when the tokens found are far away.
+The \emph{proximity-coverage} (PC) score combines both.
+It explores the same paths as Algorithm~\ref{alg:expand}, with the same stopping rules but without merging repeated subcontexts, and weights each branch by its share of the definition: a concept splits its weight equally among its outgoing relationships.
+For a concept $u$ reached after $\ell$ hops,
+\begin{equation}
+\phi(u, \ell) =
+\begin{cases}
+1 - \dfrac{\ell}{D + 1}, & u \in T, \\[4pt]
+0, & u \notin T \text{ and } (\ell = D \text{ or } \deg^+(u) = 0), \\[4pt]
+\dfrac{1}{\deg^+(u)} \displaystyle\sum_{(u,R,w) \in \mathrm{Out}(u)} \phi(w, \ell + 1), & \text{otherwise,}
+\end{cases}
+\quad
+\mathrm{PC}_m = \phi(m, 0).
+\label{eq:pc}
+\end{equation}
+Unrolling the recursion, each branch $b$ of the expansion, a path from $m$ to its first token or to an uncovered end, receives a weight $\omega_b$, the product of $1/\deg^+(u)$ over the concepts $u$ it leaves; these weights sum to 1.
+With $B^{+}_m$ the branches that end at a token, at depth $\ell_b$,
+\[
+\mathrm{PC}_m = c_m \cdot p_m,
+\qquad
+c_m = \sum_{b \in B^{+}_m} \omega_b,
+\qquad
+p_m = \frac{1}{c_m} \sum_{b \in B^{+}_m} \omega_b \Big(1 - \frac{\ell_b}{D + 1}\Big).
+\]
+The \emph{branch coverage} $c_m$ is the weight of the branches that end at a token, and the \emph{proximity} $p_m$ is their weighted mean closeness.
+$\mathrm{PC}_m$ equals 1 when the concept is itself a token and 0 when it reaches no token.
+In Figure~\ref{fig:context-tree}b, $m$ gives half of its weight to $a$, whose branch ends at $t_A$, and half to $b$, which splits it between $t_B$ and the uncovered $z$; both tokens lie at depth 2, so $c_m = 3/4$, $p_m = 1/3$ and $\mathrm{PC}_m = 1/4$.
+
+The weights matter when the branches of a concept fan out unevenly.
+Take a concept with two relationships, one leading to ten tokens at depth 2 and the other ending without a token ($D = 9$).
+An unweighted mean over its eleven branch ends gives 0.73, more than the 0.45 the concept gets when the first relationship is itself a token at depth 1, although one closer token is the better representation: the many tokens of one branch hide the missing one.
+With the weights, each relationship keeps half of the score, which gives 0.40 and 0.45.
+In terms of random walks, $\mathrm{PC}_m$ is the expected value of $1 - j/(D + 1)$ over the walks of Section~\ref{sec:method:score}, where $j$ is the step of the first token (0 if none), and $c_m$ equals $S_D(m, T)$ at $\lambda = 1$.
+The PC score thus uses the same walks as the selection objective, with a linear rather than geometric discount, and is not independent of it.
+We therefore also report the unweighted mean (Appendix~\ref{app:flat-pc}), which ranks the methods in the same way, and compare the trees with expert judgement (Section~\ref{sec:method:expert}).
+
+\paragraph{Keep concepts apart: unique rate.}
+The unique rate is the share of concepts whose signature no other concept has ($N_{\sigma_m} = 1$).
+Two concepts with the same tree are indistinguishable for a model, however well each of them is covered.
+
+\paragraph{Stay short: tokens per concept.}
+The number of tokens per concept, the mean of $n_m$, measures the efficiency of the tokenizer.
+It sets the length of the input sequences, and the cost of standard self-attention grows quadratically with this length \cite{vaswani2017attention}.
+On EHR data, we report the corresponding cost per event (Section~\ref{sec:method:ehr}).
+
+The four metrics cannot be optimized one at a time.
+A vocabulary of generic hub concepts reaches every concept, but through long and distant branches, which lowers the PC score and lengthens the trees.
+A vocabulary of very specific concepts keeps the trees short and close for the concepts it contains, but leaves others unknown.
+Two concepts can both score high on PC and still share one tree.
+We therefore compare methods by their average rank over the four metrics rather than on any one of them.
+As secondary metrics, the \emph{uncovered branch rate} is the share of concepts with at least one uncovered branch ($u_m > 0$), which keep only part of their definition, and the \emph{vocabulary use} is the share of the $k$ selected tokens that appear in at least one context tree.
+A token that no concept uses takes a slot of the vocabulary, and an embedding, without serving any concept.
+Because a mean can hide a minority of badly represented concepts, we also report the distribution of the per-concept PC score and number of tokens.
+\begin{table}[t]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}llcc@{}}
+\toprule
+\textbf{Requirement} & \textbf{Metric} & \textbf{Per concept} & \textbf{Better} \\
+\midrule
+Represent every concept & Unknown rate & $\mathbf{1}[n_m = 0]$ & $\downarrow$ \\
+Keep its meaning & Proximity-coverage (PC) score & $c_m \cdot p_m$, Eq.~\eqref{eq:pc} & $\uparrow$ \\
+Keep concepts apart & Unique rate & $\mathbf{1}[N_{\sigma_m} = 1]$ & $\uparrow$ \\
+Stay short (efficiency) & Tokens per concept & $n_m$ & $\downarrow$ \\
+\midrule
+Keep the whole definition (secondary) & Uncovered branch rate & $\mathbf{1}[u_m > 0]$ & $\downarrow$ \\
+Use the whole vocabulary (secondary) & Vocabulary use & -- (per token set) & $\uparrow$ \\
+\bottomrule
+\end{tabular}
+\caption{Evaluation metrics: one core metric per requirement of a tokenizer. The per-concept metrics are averaged over the concepts to represent; vocabulary use is the share of the $k$ tokens that at least one context tree contains.}
+\label{tab:metrics}
+\end{table}
+
+% ------------------------------------------------------------------
+\subsection{Compared selection methods}
+\label{sec:method:baselines}
+
+We compare 19 configurations (Table~\ref{tab:baselines}), which all select their tokens from the same candidate pool $V_D$.
+Except for random selection, each configuration ranks $V_D$ once and takes the top $k$ candidates, so one ranking serves every budget.
+
+\paragraph{Our method.} We run our selection with $\lambda \in \{0, 0.1, \dots, 1\}$.
+
+\paragraph{Ablation: discrete set cover.}
+The ablation uses the same lazy greedy procedure and has the same guarantee, but replaces $S_h(u, T)$ by a binary indicator: a concept counts as covered as soon as some token lies within $D$ hops of it, however far away and through however few of its branches.
+This is the classical maximum coverage problem \cite{nemhauser1978analysis, feige1998threshold}.
+Since the procedure is identical, the difference between the two isolates the effect of the distance-aware coverage.
+
+\paragraph{Baselines.}
+Seven baselines are well defined on a DAG: random selection, three degree-based rankings and three centrality-based rankings (Table~\ref{tab:baselines}).
+Degree- and PageRank-based selection also correspond to the anchor-selection strategies of NodePiece~\cite{galkin2022nodepiece}.
+
+\begin{table}[t]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.6cm}>{\raggedright\arraybackslash}p{3.0cm}c>{\raggedright\arraybackslash}p{7.6cm}@{}}
+\toprule
+\textbf{Family} & \textbf{Method} & \textbf{Configs} & \textbf{Ranks candidates by} \\
+\midrule
+Ours & Semantic coverage greedy & 11 & marginal gain in $F_D$, $\lambda \in \{0, 0.1, \dots, 1\}$ \\
+Ablation & Discrete set cover & 1 & marginal gain in the number of concepts with a token within $D$ hops \\
+Random & Random & 1 & uniform sampling; metrics averaged over 20 draws \\
+\midrule
+\multirow{3}{*}{Degree} & Highest degree, $d \le D$ & 1 & number of concepts that reach the candidate within $D$ hops \\
+ & Highest degree, $d \le 1$ & 1 & number of concepts that reach the candidate in one hop \\
+ & Most \isa{} children & 1 & number of descendants within $D$ \isa{} hops \\
+\midrule
+\multirow{3}{*}{Centrality} & PageRank & 1 & stationary probability of a random walk restarting uniformly on $V_D$, $\alpha = 0.85$ \cite{page1999pagerank} \\
+ & Personalized PageRank & 1 & same walk, restarting uniformly on $M$ \cite{haveliwala2002topic} \\
+ & Closeness centrality & 1 & inverse mean distance from the concepts that reach the candidate, with the Wasserman--Faust correction \cite{freeman1978centrality, wasserman1994social} \\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{Total}} & 19 & \\
+\bottomrule
+\end{tabular}
+\caption{The 19 compared configurations. All select from the candidate pool $V_D$.}
+\label{tab:baselines}
+\end{table}
+
+% ------------------------------------------------------------------
+\subsection{Application to EHR data}
+\label{sec:method:ehr}
+
+The benchmark treats all concepts alike, whereas in EHR data a few concepts produce most events and most concepts are rare.
+We therefore apply the tokenizer to the concepts $\Mhero$ that occur in a real EHR dataset (Section~\ref{sec:setup}).
+We re-run the whole pipeline on $\Mhero$ (candidate pool, then selection with $\lambda = 0.9$); the selection uses only the list of concepts, not their frequencies.
+An \emph{event} is one recorded occurrence of a concept.
+
+We compare our tokenizer with \emph{frequency truncation}, the usual frequency-based reduction of EHR vocabularies \cite{steinberg2021language}: the $k$ most frequent concepts become tokens, and every other concept is mapped to a single unknown token.
+We measure:
+\begin{itemize}
+    \item \emph{concepts and events represented}: a concept is represented if it receives at least one token other than the unknown token, and an event is represented if its concept is;
+    \item \emph{rare concepts}: concepts with fewer than 100 events, for which we report the share represented and the PC score. For truncation, the PC score follows from its definition: a kept concept is its own token, at depth 0, and scores 1, and a discarded concept has no token and scores 0;
+    \item \emph{borrowed strength}: a token occurs in every event of every concept that uses it, so a rare concept is learned from the events of its tokens rather than from its own; we compare the number of events of a concept with that of its least frequent token;
+    \item \emph{tokens per event}: the length of the representation of an event, counting the distinct tokens of each context and one marker per subcontext; truncation always uses one token.
+\end{itemize}
+
+% ------------------------------------------------------------------
+\subsection{Expert evaluation}
+\label{sec:method:expert}
+
+The PC score measures distance in the graph, not clinical meaning.
+Semanticians therefore compared, blinded, the context trees of our tokenizer ($\lambda = 0.9$, $k = 5{,}000$, selected on $\Mhero$) with those of Personalized PageRank at the same budget, using the official SNOMED~CT definition of each concept as the reference.
+We chose Personalized PageRank because it is the only baseline that, like our method, targets the concepts to represent: its random walk restarts on $M$. \doubt{state the rule fixed in advance; with the four-metric ranking, Personalized PageRank is the best baseline only at low compression}
+
+\paragraph{Concepts.}
+We consider the concepts of $\Mhero$ that belong to the official SNOMED~CT release, and keep those whose two trees differ; concepts with identical trees count as ``no clear difference''.
+To keep the task feasible, the two trees of a concept may hold at most 16 tokens together.
+Primitive concepts are included, since leaving them out would bias the sample; raters judge them by their name and stated relationships.
+A concept falls into one of three categories: kept as a token by our method and decomposed by the baseline, the reverse, or decomposed by both into different trees.
+We sampled 100 concepts, stratified by category and by definition status; every rater rates the same 100 concepts, in a rater-specific order, and the side (A or B) of each method is randomized and balanced within each stratum.
+
+\paragraph{Task and analysis.}
+For each concept, raters choose ``A better'', ``no clear difference'' or ``B better'', and may flag, for each version, an incorrect or ambiguous association, absent information, lost precision (too general a token), or redundant information.
+For a fully defined concept, they may also flag an official definition that does not capture its meaning.
+We report the preference among the rated concepts, per stratum and weighted by stratum size, with a sign test that excludes ties and bootstrap confidence intervals; separately, we report it over all concepts of the release, where concepts with identical trees count as ties.
+We also report the agreement between raters (Cohen's $\kappa$, or Fleiss' $\kappa$ for more than two raters) and between expert preference and the sign of the difference in PC score.

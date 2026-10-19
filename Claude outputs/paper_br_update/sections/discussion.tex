@@ -1,0 +1,46 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Why distance-aware greedy selection preserves meaning}
+\label{sec:discussion:why}
+
+Degree- and centrality-based methods score each candidate once, by its position in the graph, independently of the tokens already selected.
+They favour hubs near the top of the hierarchy, such as \textit{Qualifier value}, \textit{Action} or \textit{Body structure}, which many concepts reach but which describe none of them well.
+Branches then end at generic tokens far from the concept: the PC score drops, and since a long branch fans out over more parents and attributes before it stops, the trees grow longer.
+The PC score is the metric on which every baseline falls behind our method: at every budget, any $\lambda$ from 0.4 to 0.9 gives a higher PC score than every baseline (Section~\ref{sec:results:benchmark}).
+
+Our selection starts from similar hubs, with \textit{Qualifier value}, \textit{Body structure} and \textit{Organism} among its first tokens, but it combines two mechanisms that the baselines lack.
+The distance decay rewards a token for reaching concepts in few hops, so a token closer to a concept than an already selected hub still raises that concept's coverage.
+Marginal-gain selection accounts for the tokens already chosen, so a candidate that only reaches well-covered concepts is passed over; this is also why almost every selected token ends up in some context tree, whereas the baselines spend up to 13\% of their budget on tokens that no concept uses.
+After a few hubs, the selection therefore turns to more specific concepts.
+Both mechanisms are needed: the set-cover ablation keeps marginal-gain selection but drops the decay, and every $\lambda > 0$ outranks it.
+
+The decay must lie strictly between 0 and 1, because at both extremes the marginal gain stops distinguishing between candidates.
+At $\lambda = 0$, only exact matches count: every concept not yet selected has the same gain, the choice is left to the tie-break, and at high compression most concepts receive no token.
+At $\lambda = 1$, a token counts the same at any distance: once every walk from the concepts reaches some token, which happens after fewer than 1,000 tokens on $M$, every remaining candidate has zero gain, and the rest of the budget is filled without regard to distance.
+Any $\lambda$ strictly between 0 and 1 avoids both failures, and because greedy selection depends on the order of the gains rather than on their size, even a value just below 1 keeps closer tokens ahead of farther ones.
+In our benchmark, intermediate values of $\lambda$ thus select tokens that are general enough to be shared by many concepts, yet close enough to each of them to keep its specific relationships.
+
+\subsection{Implications for EHR foundation models}
+\label{sec:discussion:ehr}
+
+\paragraph{Rare concepts.}
+Frequency truncation and our tokenizer handle the long tail in opposite ways.
+Truncation keeps almost all events but maps most distinct concepts, including every rare one, to the unknown token (Section~\ref{sec:results:hero}).
+Rare concepts can nevertheless include clinically important conditions and procedures.
+Our tokenizer keeps every concept and writes each rare one with tokens it shares with frequent, related concepts.
+This is meant to address the learnability problem of the Introduction: a rare concept is written with tokens that occur far more often than the concept itself, in a median of 609 events against 8, although some rare concepts gain nothing (Table~\ref{tab:longtail}).
+Whether a model learns better representations of rare concepts from such tokens, and whether this improves downstream clinical predictions, remains to be tested by pretraining experiments.
+
+\paragraph{Sequence length.}
+The price is longer sequences: several tokens per event instead of one, and the cost of standard self-attention grows quadratically with sequence length \cite{vaswani2017attention}.
+This cost can be reduced by pooling the tokens of each event into a single input position, or by a hybrid vocabulary that keeps the most frequent concepts as their own tokens and spends the rest of the budget on our objective, so that routine events cost one token while rare concepts keep a structured representation.
+Whether a model needs the relationship markers of the context tree, or whether flat token sets suffice, is an empirical question; the markers matter most at small budgets, for instance to bind each laterality to its finding site.
+
+\paragraph{Choosing $k$ and $\lambda$.}
+The token budget is bounded from two sides.
+Each token needs enough training occurrences for its embedding to be learned, and a larger $k$ adds specific tokens shared by fewer concepts, so the tokens of rare concepts occur in fewer events (Table~\ref{tab:ehr}); smaller datasets therefore call for smaller budgets.
+Conversely, a smaller vocabulary lengthens the trees and the sequences, so the available compute limits how far the vocabulary can be compressed.
+For data of our size, about 280 million events, budgets between 2,000 and 5,000, that is 12\% to 31\% of the concepts, balance the two bounds: at least 94\% of the rare concepts are encoded only by tokens seen in at least 10 events, while an event costs 5.6 to 6.9 tokens.
+The decay matters much less: we recommend $\lambda = 0.9$, the best-ranked value at every compression level, and advise against $\lambda = 1$, which looks like the natural choice of no decay but removes the incentive to select close tokens.
+Tuning is cheap: one run of the selection gives the vocabulary for every budget, and since it needs only the ontology and the list of concepts, not patient data, the vocabulary can be computed and shared outside the clinical data environment.

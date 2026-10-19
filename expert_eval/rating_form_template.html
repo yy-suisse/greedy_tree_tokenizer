@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concept Representation Study</title>
+<style>
+:root{
+  --def:#17693a;
+  --bg:#f6f5f2; --surface:#ffffff; --surface-2:#efede8; --ink:#1d1d1b; --ink-2:#4f4d48; --ink-3:#85827b;
+  --line:#dcd9d2; --line-strong:#c4c0b6; --edge:#9d998f; --accent:#1f5f8b; --accent-ink:#ffffff; --accent-soft:#e2edf5;
+  --warn:#8a5200; --warn-soft:#fbf0dc;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#151513; --surface:#1e1e1b; --surface-2:#292925; --ink:#ecebe7; --ink-2:#bdbab2; --ink-3:#8c897f;
+    --line:#3a3934; --line-strong:#4d4b45; --edge:#6c6a62; --accent:#80b5dc; --accent-ink:#0c1822; --accent-soft:#1c3040;
+    --warn:#e6b46a; --warn-soft:#33281a; --def:#6fd096;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit}
+.topbar{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.topbar-inner{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;gap:10px 12px;align-items:center;flex-wrap:wrap}
+.brand{font-weight:650;letter-spacing:-.01em}
+.meta{color:var(--ink-3);font-size:13px}
+.meta.warn{color:var(--warn)}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 12px;border-radius:8px;font-size:14px;cursor:pointer}
+.btn:hover{background:var(--surface-2)}
+.btn-primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn-primary:hover{background:var(--accent);filter:brightness(1.08)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.dot:focus-visible,.toggle button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.toggle button{border:0;padding:6px 10px;background:transparent;color:var(--ink-2);cursor:pointer;font-size:13px}
+.toggle button+button{border-left:1px solid var(--line)}
+.toggle button[aria-pressed="true"]{background:var(--surface-2);color:var(--ink);font-weight:650}
+.progress{height:3px;background:var(--surface-2)}
+.progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 56px}
+.banner{background:var(--warn-soft);color:var(--warn);border:1px solid currentColor;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:0}
+.card-label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:650;margin-bottom:10px}
+.eyebrow{font-size:13px;color:var(--ink-3);margin-bottom:2px}
+h1.concept{font-size:22px;line-height:1.3;margin:0 0 14px;font-weight:650;letter-spacing:-.01em}
+h1.concept .sctid{font-size:14px;margin-left:6px}
+
+/* ---- tree view ---- */
+.ctx{display:flex;flex-direction:column;gap:3px}
+.tok{display:flex;gap:4px 8px;align-items:baseline;flex-wrap:wrap}
+.term{font-weight:520;overflow-wrap:anywhere}
+.diff .term,.diff .g-term,.term.diff{font-weight:760;color:var(--ink)}
+.uncovered.diff,.tokrow.unc.diff{font-weight:800;color:var(--ink)}
+.diff-hint{font-size:13px;color:var(--ink-3);margin:12px 0 -4px}
+.diff-hint b{color:var(--ink)}
+.tag{color:var(--ink-3)}
+.sctid{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+.rblock+.rblock,.ctx>.tok+.rblock,.ctx>.sub+.rblock,.rblock+.sub{margin-top:6px}
+.rel{font-size:13px;color:var(--accent);font-weight:650;margin-bottom:2px}
+.rel.def{color:var(--def)}
+.tok.def .term,.tok.def .tag{color:var(--def)}
+.gnode .tokrow.def .g-term,.gnode .tokrow.diff.def .g-term{color:var(--def)}
+.tok.diff.def .term{color:var(--def)}
+.status{display:inline-block;font-size:11.5px;font-weight:650;letter-spacing:.03em;text-transform:none;border:1px solid var(--line-strong);border-radius:999px;padding:1px 8px;margin-left:8px;color:var(--ink-2)}
+.prim-note{font-size:13px;color:var(--ink-2);margin:-4px 0 10px}
+.def-legend{color:var(--def);font-weight:650}
+.sub{margin-left:4px;padding-left:14px;border-left:2px solid var(--line)}
+.uncovered{font-family:var(--mono);color:var(--ink-3);font-size:17px;line-height:1.2}
+.group{border:1px dashed var(--line-strong);border-radius:8px;padding:6px 10px 8px;margin-top:8px}
+.group-label{font-size:12px;color:var(--ink-3);margin-bottom:2px}
+
+/* ---- graph view ---- */
+.graph{overflow-x:auto;overflow-y:hidden;padding:2px 2px 6px}
+.gcanvas{position:relative}
+.gedges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.gedges path.edge{fill:none;stroke:var(--edge);stroke-width:1.4}
+.gedges marker path{fill:var(--edge)}
+.gedges text{fill:var(--accent);font:650 11.5px var(--sans)}
+.gedges text.def{fill:var(--def)}
+.gnode{position:absolute;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);padding:6px 9px;font-size:13.5px;line-height:1.3;overflow-wrap:anywhere}
+.gnode .g-term{display:block;font-weight:520}
+.gnode .g-sub{display:block;font-size:12px;color:var(--ink-3)}
+.gnode .g-sub .sctid{font-size:11.5px}
+.gnode .tokrow+.tokrow{border-top:1px solid var(--line);margin-top:5px;padding-top:5px}
+.gnode .tokrow.unc{font-family:var(--mono);color:var(--ink-3);font-size:15px}
+.gnode.concept{background:var(--surface-2);border-style:dashed}
+.gnode.concept .g-term{font-weight:650}
+.gnode.empty{text-align:center;font-family:var(--mono);color:var(--ink-3);border-style:dotted;padding:4px 0;font-size:16px}
+.gnode.empty.diff{font-weight:800;color:var(--ink)}
+.gnode .tokrow.diff .g-term{font-weight:760;color:var(--ink)}
+.gnode .tokrow.unc.diff{font-weight:800;color:var(--ink)}
+.gnode.group{border-radius:999px;padding:0;height:34px;display:grid;place-items:center;font-size:11px;font-weight:650;color:var(--ink-3)}
+
+.def-foot{border-top:1px solid var(--line);margin-top:14px;padding-top:10px}
+/* versions */
+.versions{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.versions.stack{grid-template-columns:1fr}
+@media (max-width:760px){.versions{grid-template-columns:1fr}}
+.ver-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.badge{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;background:var(--surface-2);font-weight:700;font-size:15px}
+.ver-title{font-weight:650}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+legend{padding:0;font-size:13px;font-weight:650;color:var(--ink-2);margin-bottom:4px}
+.issues{border-top:1px solid var(--line);margin-top:14px;padding-top:10px}
+.versions.stack .checks{display:flex;flex-wrap:wrap;gap:0 26px}
+.check{display:flex;gap:9px;align-items:flex-start;padding:4px 0;cursor:pointer}
+.check input{width:16px;height:16px;margin:3px 0 0;accent-color:var(--accent);flex:none}
+/* main question */
+.question{margin-top:16px}
+.question legend{font-size:16px;color:var(--ink);margin-bottom:10px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media (max-width:520px){.seg{grid-template-columns:1fr}}
+.seg label{position:relative;border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:var(--surface);font-weight:550}
+.seg label:hover{background:var(--surface-2)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+.seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.comment{margin-top:16px}
+.comment label{display:block;font-size:13px;font-weight:650;color:var(--ink-2);margin-bottom:6px}
+textarea,input[type=text]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--ink);font:inherit}
+textarea{min-height:72px;resize:vertical}
+textarea:focus,input[type=text]:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+/* nav */
+.navbar{display:flex;align-items:center;gap:12px;margin-top:20px}
+.dots{display:flex;flex-wrap:wrap;gap:6px;flex:1;justify-content:center}
+.dot{min-width:32px;height:32px;padding:0 6px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:12px;cursor:pointer;color:var(--ink-2)}
+.dot.done{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.dot.cur{box-shadow:0 0 0 2px var(--ink)}
+.done-box{margin-top:20px;border-color:var(--accent)}
+.done-box h2{margin:0 0 4px;font-size:17px}
+.done-box p{margin:0 0 12px;color:var(--ink-2)}
+/* intro */
+.intro{max-width:760px}
+.intro h2{margin:0 0 10px;font-size:20px}
+.intro h3{margin:18px 0 6px;font-size:15px}
+.intro p,.intro li{color:var(--ink-2)}
+.intro ol,.intro ul{padding-left:20px}
+.intro dl{margin:0}
+.intro dt{font-weight:650;margin-top:8px}
+.intro dd{margin:0;color:var(--ink-2)}
+.intro .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:18px}
+.intro .row label{font-size:13px;font-weight:650;color:var(--ink-2);display:block;margin-bottom:4px}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div>
+      <div class="brand" id="t-title"></div>
+      <div class="meta" id="t-meta"></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="toggle" role="group" aria-label="View" id="view-toggle">
+      <button type="button" data-view="graph"></button>
+      <button type="button" data-view="tree"></button>
+    </div>
+    <div class="toggle" role="group" aria-label="Language">
+      <button type="button" data-lang="en">EN</button>
+      <button type="button" data-lang="fr">FR</button>
+    </div>
+    <button type="button" class="btn" id="b-instr"></button>
+    <button type="button" class="btn btn-primary" id="b-download"></button>
+  </div>
+  <div class="progress" aria-hidden="true"><div id="progress-fill"></div></div>
+</header>
+<main id="main"></main>
+
+<!-- ===== STUDY DATA (filled by (final)_expert_evaluation_framework.ipynb; one file per rater) ===== -->
+<script type="application/json" id="study-data">
+__STUDY_DATA__
+</script>
+<!-- ===== END STUDY DATA ===== -->
+
+<script>
+(function () {
+'use strict';
+
+const DATA = JSON.parse(document.getElementById('study-data').textContent);
+let C = DATA.concepts;                 // display order; reordered per rater (applyOrder)
+const ISSUES = ['incorrect', 'absent', 'precision', 'redundant'];
+
+const STR = {
+  en: {
+    title: 'Concept representation study',
+    rater: 'Rater',
+    instructions: 'Instructions',
+    download: 'Download my answers',
+    view_graph: 'Graph',
+    view_tree: 'Tree',
+    saved: 'saved in this browser {time}',
+    nosave: 'Autosave unavailable: download your answers before closing',
+    downloaded: 'last download {time}',
+    demo: 'DEMO: illustrative content, not real tokenizer output',
+    concept_of: 'Concept {i} of {total}',
+    def_label: 'Official SNOMED CT definition',
+    is_a: 'Is a',
+    same_concept: 'Same concept',
+    diff_hint_b: 'Bold',
+    diff_hint: '= not at the same place in the other version.',
+    group: 'Role group {n}',
+    def_insufficient: 'This official definition is not sufficient to capture the meaning of the concept',
+    status_defined: 'fully defined',
+    status_primitive: 'primitive',
+    prim_note: 'Primitive concept: the official definition gives necessary conditions only. The concept means more than this definition; use its name as well.',
+    def_legend: 'Dark green',
+    def_legend_text: '= same relation to the same concept as in the official definition.',
+    version: 'Version {x}',
+    issues_legend: 'Problems in version {x} (tick all that apply)',
+    incorrect: 'Incorrect or ambiguous association',
+    absent: 'Information absent',
+    precision: 'Precision lost (too general)',
+    redundant: 'Redundant information',
+    question: 'Which version better represents the meaning of the concept?',
+    choice_A: 'A is better',
+    choice_equal: 'No clear difference',
+    choice_B: 'B is better',
+    comment: 'Comment (optional)',
+    prev: '← Previous',
+    next: 'Next →',
+    done_title: 'All concepts answered',
+    done_text: 'Click “Download my answers” and send the file to {who}. You can still change answers; download again afterwards.',
+    start: 'Start',
+    back: 'Back to the concepts',
+    rater_input: 'Your initials',
+    instr_html:
+      '<h2>Instructions</h2>' +
+      '<p>For each concept you will see its official SNOMED CT definition and two representations of the same concept, A and B. Each representation is built from a limited set of SNOMED CT concepts.</p>' +
+      '<p>Some concepts are <strong>fully defined</strong>: their official definition captures their whole meaning. Others are <strong>primitive</strong>: their definition gives necessary conditions only, so the concept means more than its definition. Each concept shows its status next to the definition.</p>' +
+      '<ol>' +
+      '<li>Read the official definition.</li>' +
+      '<li>Compare A and B. Choose the version that better represents the meaning of the concept: use the official definition as the reference, and for a primitive concept its name as well. If neither is clearly better, choose “No clear difference”.</li>' +
+      '<li>Tick any problems you notice in each version.</li>' +
+      '<li>Optional, for fully defined concepts: tick the box under the definition if the official definition itself does not capture the meaning of the concept, and add a comment.</li>' +
+      '</ol>' +
+      '<p><strong>Judge only what is written.</strong> Do not fill in missing information from your own knowledge.</p>' +
+      '<p>The order of A and B is random for each concept. There is no expected proportion of answers.</p>' +
+      '<h3>Problem types</h3>' +
+      '<dl>' +
+      '<dt>Incorrect or ambiguous association</dt><dd>A concept or relation states something wrong, or can be read in more than one way.</dd>' +
+      '<dt>Information absent</dt><dd>An element of the meaning (in the official definition, or for a primitive concept in its name) is not represented at all.</dd>' +
+      '<dt>Precision lost</dt><dd>An element is represented, but by a concept that is too general.</dd>' +
+      '<dt>Redundant information</dt><dd>The same information appears more than once.</dd>' +
+      '</dl>' +
+      '<h3>Reading a representation</h3>' +
+      '<p>Use the <strong>Graph / Tree</strong> switch at the top to choose how definitions and representations are drawn. Both views show exactly the same content.</p>' +
+      '<ul>' +
+      '<li><strong>Graph:</strong> the concept is on the left (dashed box). Arrows labelled with a relation (Is a, Finding site, …) point to the concepts used to describe it. An attribute can have its own attributes further right (e.g. Finding site → Laterality).</li>' +
+      '<li><strong>Tree:</strong> the same relations are listed as headings, with the concepts indented below.</li>' +
+      '</ul>' +
+      '<p><span class="uncovered">∅</span> marks a part of the concept that the version does not represent.</p>' +
+      '<p>A version may show the concept itself (<strong>Same concept</strong>) instead of building it from other concepts.</p>' +
+      '<p><strong>Bold</strong> marks a concept that is not at the same place (under the same relation) in the other version. Parts in normal weight are identical in A and B.</p>' +
+      '<p>A relation and its concept in <span class="def-legend">dark green</span> are exactly as in the official definition (same relation to the same concept).</p>' +
+      '<h3>Saving</h3>' +
+      '<p>Save this file on your computer (e.g. on the Desktop) and always open that same copy in Chrome, Edge or Firefox. Your answers are saved automatically in the browser, so you can stop and continue later. When you are done, click “Download my answers” and send the file to {who}. Do not clear your browser data before downloading.</p>'
+  },
+  fr: {
+    title: 'Étude sur la représentation des concepts',
+    rater: 'Évaluateur',
+    instructions: 'Instructions',
+    download: 'Télécharger mes réponses',
+    view_graph: 'Graphe',
+    view_tree: 'Arbre',
+    saved: 'enregistré dans ce navigateur {time}',
+    nosave: 'Sauvegarde automatique indisponible : téléchargez vos réponses avant de fermer',
+    downloaded: 'dernier téléchargement {time}',
+    demo: 'DÉMO : contenu illustratif, pas une vraie sortie du tokenizer',
+    concept_of: 'Concept {i} sur {total}',
+    def_label: 'Définition officielle SNOMED CT',
+    is_a: 'Is a',
+    same_concept: 'Même concept',
+    diff_hint_b: 'En gras',
+    diff_hint: '= absent au même endroit dans l’autre version.',
+    group: 'Groupe de rôles {n}',
+    def_insufficient: 'Cette définition officielle ne suffit pas à rendre le sens du concept',
+    status_defined: 'entièrement défini',
+    status_primitive: 'primitif',
+    prim_note: 'Concept primitif : la définition officielle ne donne que des conditions nécessaires. Le concept a un sens plus riche que cette définition ; utilisez aussi son nom.',
+    def_legend: 'En vert foncé',
+    def_legend_text: '= même relation vers le même concept que dans la définition officielle.',
+    version: 'Version {x}',
+    issues_legend: 'Problèmes dans la version {x} (cocher tout ce qui s’applique)',
+    incorrect: 'Association incorrecte ou ambiguë',
+    absent: 'Information absente',
+    precision: 'Précision perdue (trop général)',
+    redundant: 'Information redondante',
+    question: 'Quelle version représente le mieux le sens du concept ?',
+    choice_A: 'A est meilleure',
+    choice_equal: 'Pas de différence nette',
+    choice_B: 'B est meilleure',
+    comment: 'Commentaire (facultatif)',
+    prev: '← Précédent',
+    next: 'Suivant →',
+    done_title: 'Tous les concepts sont évalués',
+    done_text: 'Cliquez sur « Télécharger mes réponses » et envoyez le fichier à {who}. Vous pouvez encore modifier vos réponses ; téléchargez à nouveau ensuite.',
+    start: 'Commencer',
+    back: 'Retour aux concepts',
+    rater_input: 'Vos initiales',
+    instr_html:
+      '<h2>Instructions</h2>' +
+      '<p>Pour chaque concept, vous verrez sa définition officielle SNOMED CT et deux représentations du même concept, A et B. Chaque représentation est construite à partir d’un ensemble limité de concepts SNOMED CT.</p>' +
+      '<p>Certains concepts sont <strong>entièrement définis</strong> : leur définition officielle rend tout leur sens. D’autres sont <strong>primitifs</strong> : leur définition ne donne que des conditions nécessaires, le concept a donc un sens plus riche que sa définition. Le statut de chaque concept est indiqué à côté de la définition.</p>' +
+      '<ol>' +
+      '<li>Lisez la définition officielle.</li>' +
+      '<li>Comparez A et B. Choisissez la version qui représente le mieux le sens du concept : prenez la définition officielle comme référence, et pour un concept primitif aussi son nom. Si aucune n’est nettement meilleure, choisissez « Pas de différence nette ».</li>' +
+      '<li>Cochez les problèmes que vous remarquez dans chaque version.</li>' +
+      '<li>Facultatif, pour les concepts entièrement définis : cochez la case sous la définition si la définition officielle elle-même ne rend pas le sens du concept, et ajoutez un commentaire.</li>' +
+      '</ol>' +
+      '<p><strong>Jugez uniquement ce qui est écrit.</strong> Ne complétez pas les informations manquantes avec vos propres connaissances.</p>' +
+      '<p>L’ordre de A et B est tiré au hasard pour chaque concept. Il n’y a pas de proportion de réponses attendue.</p>' +
+      '<h3>Types de problèmes</h3>' +
+      '<dl>' +
+      '<dt>Association incorrecte ou ambiguë</dt><dd>Un concept ou une relation affirme quelque chose de faux, ou peut être lu de plusieurs façons.</dd>' +
+      '<dt>Information absente</dt><dd>Un élément du sens (dans la définition officielle, ou pour un concept primitif dans son nom) n’est pas représenté du tout.</dd>' +
+      '<dt>Précision perdue</dt><dd>Un élément est représenté, mais par un concept trop général.</dd>' +
+      '<dt>Information redondante</dt><dd>La même information apparaît plusieurs fois.</dd>' +
+      '</dl>' +
+      '<h3>Lire une représentation</h3>' +
+      '<p>Utilisez le bouton <strong>Graphe / Arbre</strong> en haut pour choisir l’affichage des définitions et des représentations. Les deux affichages montrent exactement le même contenu.</p>' +
+      '<ul>' +
+      '<li><strong>Graphe :</strong> le concept est à gauche (cadre en pointillés). Les flèches portant le nom d’une relation (Is a, Finding site, …) pointent vers les concepts qui le décrivent. Un attribut peut avoir ses propres attributs plus à droite (p. ex. Finding site → Laterality).</li>' +
+      '<li><strong>Arbre :</strong> les mêmes relations sont listées comme titres, avec les concepts en retrait en dessous.</li>' +
+      '</ul>' +
+      '<p><span class="uncovered">∅</span> indique une partie du concept que la version ne représente pas.</p>' +
+      '<p>Une version peut montrer le concept lui-même (<strong>Même concept</strong>) au lieu de le construire à partir d’autres concepts.</p>' +
+      '<p><strong>En gras</strong> : un concept absent au même endroit (sous la même relation) dans l’autre version. Les parties en police normale sont identiques dans A et B.</p>' +
+      '<p>Une relation et son concept en <span class="def-legend">vert foncé</span> sont exactement comme dans la définition officielle (même relation vers le même concept).</p>' +
+      '<h3>Enregistrement</h3>' +
+      '<p>Enregistrez ce fichier sur votre ordinateur (p. ex. sur le Bureau) et ouvrez toujours cette même copie dans Chrome, Edge ou Firefox. Vos réponses sont enregistrées automatiquement dans le navigateur : vous pouvez vous arrêter et reprendre plus tard. À la fin, cliquez sur « Télécharger mes réponses » et envoyez le fichier à {who}. N’effacez pas les données de votre navigateur avant le téléchargement.</p>'
+  }
+};
+
+/* ---------- storage ---------- */
+const KEY = 'semeval:' + DATA.study_id + ':' + (DATA.rater_id || '');
+let storageOK = true;
+let lastSaved = '';
+function load() {
+  try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; }
+  catch (e) { storageOK = false; return null; }
+}
+function persist() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); storageOK = true; lastSaved = clock(new Date()); }
+  catch (e) { storageOK = false; }
+  renderMeta();
+}
+
+let state = Object.assign(
+  { rater_id: DATA.rater_id || '', lang: DATA.lang || 'en', view: DATA.view_default || 'graph',
+    introSeen: false, current: 0, answers: {}, lastExport: '' },
+  load() || {}
+);
+if (DATA.rater_id) state.rater_id = DATA.rater_id;
+// a different concept order for every rater, derived from the rater's ID (same ID -> same order)
+function hashStr(s) { let x = 2166136261; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; }
+function seededPerm(n, seedStr) {
+  let a = hashStr(seedStr) || 1;
+  const rnd = () => { a = (a + 0x6D2B79F5) | 0; let t_ = Math.imul(a ^ (a >>> 15), 1 | a); t_ = (t_ + Math.imul(t_ ^ (t_ >>> 7), 61 | t_)) ^ t_; return ((t_ ^ (t_ >>> 14)) >>> 0) / 4294967296; };
+  const p = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; }
+  return p;
+}
+function applyOrder() {
+  const n = DATA.concepts.length;
+  if (!DATA.shuffle_by_rater || !state.rater_id) { C = DATA.concepts; return; }
+  if (!Array.isArray(state.order) || state.order.length !== n) state.order = seededPerm(n, String(state.rater_id).trim().toUpperCase());
+  C = state.order.map(i => DATA.concepts[i]);
+}
+applyOrder();
+if (state.view !== 'graph' && state.view !== 'tree') state.view = 'graph';
+if (!(state.current >= 0 && state.current < C.length)) state.current = 0;
+let showIntro = !state.introSeen;
+
+/* ---------- helpers ---------- */
+function t(key, vars) {
+  let s = (STR[state.lang] && STR[state.lang][key] !== undefined) ? STR[state.lang][key] : STR.en[key];
+  if (vars) for (const k in vars) s = s.split('{' + k + '}').join(vars[k]);
+  return s;
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function clock(d) { return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  if (attrs) for (const k in attrs) {
+    const v = attrs[k];
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false)
+    el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+const SVGNS = 'http://www.w3.org/2000/svg';
+function sv(tag, attrs) {
+  const el = document.createElementNS(SVGNS, tag);
+  for (const k in attrs || {}) el.setAttribute(k, attrs[k]);
+  return el;
+}
+function splitName(name) {
+  const m = /^(.*?)\s*(\([^()]*\))\s*$/.exec(name || '');
+  return m ? [m[1], m[2]] : [name || '', ''];
+}
+function blankAnswer() {
+  const iss = () => ({ incorrect: false, absent: false, precision: false, redundant: false });
+  return { choice: '', view: '', issues: { A: iss(), B: iss() }, def_insufficient: false, comment: '', seconds: 0, modified: '' };
+}
+function ans(i) {
+  const id = C[i].concept_id;
+  if (!state.answers[id]) state.answers[id] = blankAnswer();
+  return state.answers[id];
+}
+function answeredCount() { return C.filter(c => state.answers[c.concept_id] && state.answers[c.concept_id].choice).length; }
+function touch(a) { a.modified = new Date().toISOString(); }
+
+/* ---------- time on task ---------- */
+let tStart = null;
+function startTimer() { if (!showIntro && document.visibilityState === 'visible' && tStart === null) tStart = Date.now(); }
+function stopTimer() {
+  if (tStart !== null) { ans(state.current).seconds += (Date.now() - tStart) / 1000; tStart = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { stopTimer(); persist(); } else startTimer();
+});
+setInterval(() => { if (tStart !== null) { stopTimer(); startTimer(); persist(); } }, 20000);
+
+/* =====================================================================
+   TREE VIEW
+   ===================================================================== */
+function tokenEl(tok) {
+  const [term, tag] = splitName(tok.name);
+  return h('div', { class: 'tok' + (tok.diff ? ' diff' : '') + (tok.def ? ' def' : '') },
+    h('span', { class: 'term', text: term }),
+    tag ? h('span', { class: 'tag', text: tag }) : null,
+    tok.id ? h('span', { class: 'sctid', text: tok.id }) : null
+  );
+}
+function relBlock(label, content, isDef) {
+  return h('div', { class: 'rblock' }, h('div', { class: 'rel' + (isDef ? ' def' : ''), text: label }), h('div', { class: 'sub' }, content));
+}
+function emptyEl(diff) { return h('div', { class: 'uncovered' + (diff ? ' diff' : ''), 'aria-label': 'not represented', text: '∅' }); }
+// One context of the tokenizer output: tokens (+ ∅ if an IS-A branch found no token), then attribute branches.
+// At the root, tokens are reached via IS-A, so they get an "Is a" heading.
+function contextEl(ctx, isRoot) {
+  ctx = ctx || {};
+  const el = h('div', { class: 'ctx' });
+  const all = ctx.tokens || [];
+  if (isRoot) {
+    // root tokens: the concept itself, official parents (green "Is a"), other IS-A tokens
+    const selfToks = all.filter(x => x.self), defToks = all.filter(x => !x.self && x.def), other = all.filter(x => !x.self && !x.def);
+    const rest = other.map(tokenEl);
+    if (ctx.uncovered) rest.push(emptyEl(ctx.udiff));
+    if (selfToks.length) el.append(relBlock(t('same_concept'), h('div', { class: 'ctx' }, selfToks.map(tokenEl))));
+    if (defToks.length) el.append(relBlock(t('is_a'), h('div', { class: 'ctx' }, defToks.map(tokenEl)), true));
+    if (rest.length) el.append(relBlock(t('is_a'), h('div', { class: 'ctx' }, rest)));
+  } else {
+    all.forEach(x => el.append(tokenEl(x)));
+    if (ctx.uncovered) el.append(emptyEl(ctx.udiff));
+  }
+  (ctx.subs || []).forEach(s => el.append(relBlock(s.rel, contextEl(s.context, false), !!s.def)));
+  return el;
+}
+function definitionTreeEl(def) {
+  const el = h('div', { class: 'ctx' });
+  if (def.parents && def.parents.length) el.append(relBlock(t('is_a'), h('div', { class: 'ctx' }, def.parents.map(tokenEl))));
+  const groups = def.groups || [];
+  groups.forEach((g, gi) => {
+    const target = groups.length > 1 ? h('div', { class: 'group' }, h('div', { class: 'group-label', text: t('group', { n: gi + 1 }) })) : el;
+    g.forEach(r => target.append(relBlock(r.rel, tokenEl(r))));
+    if (target !== el) el.append(target);
+  });
+  return el;
+}
+
+/* =====================================================================
+   GRAPH VIEW (left-to-right node-link diagram, laid out after insertion)
+   ===================================================================== */
+const G = { wConcept: 150, wToken: 180, wEmpty: 44, wGroup: 40, gap: 185, vgap: 14 };
+let pendingLayouts = [];
+let markerUid = 0;
+
+function versionGraph(c, ctx) {
+  ctx = ctx || {};
+  const root = { kind: 'concept', tokens: [{ id: c.concept_id, name: c.name }], label: null, children: [] };
+  (ctx.tokens || []).forEach(tok => root.children.push({ kind: 'tokens', tokens: [tok], label: tok.self ? t('same_concept') : t('is_a'), def: !!tok.def, children: [] }));
+  if (ctx.uncovered) root.children.push({ kind: 'empty', diff: !!ctx.udiff, label: t('is_a'), children: [] });
+  (ctx.subs || []).forEach(s => root.children.push(subGraph(s)));
+  return root;
+}
+function subGraph(s) {
+  const cx = s.context || {};
+  const toks = cx.tokens || [];
+  return { kind: toks.length ? 'tokens' : 'empty', tokens: toks, uncovered: !!cx.uncovered && toks.length > 0,
+           diff: !!cx.udiff, label: s.rel, def: !!s.def, children: (cx.subs || []).map(subGraph) };
+}
+function definitionGraph(c, def) {
+  const root = { kind: 'concept', tokens: [{ id: c.concept_id, name: c.name }], label: null, children: [] };
+  (def.parents || []).forEach(p => root.children.push({ kind: 'tokens', tokens: [p], label: t('is_a'), children: [] }));
+  const groups = def.groups || [];
+  groups.forEach((g, gi) => {
+    const attrs = g.map(r => ({ kind: 'tokens', tokens: [{ id: r.id, name: r.name }], label: r.rel, children: [] }));
+    if (groups.length > 1) root.children.push({ kind: 'group', text: 'G' + (gi + 1), title: t('group', { n: gi + 1 }), label: null, children: attrs });
+    else root.children.push(...attrs);
+  });
+  return root;
+}
+function gNodeEl(n) {
+  if (n.kind === 'empty') { n.w = G.wEmpty; return h('div', { class: 'gnode empty' + (n.diff ? ' diff' : ''), text: '∅' }); }
+  if (n.kind === 'group') { n.w = G.wGroup; return h('div', { class: 'gnode group', title: n.title, text: n.text }); }
+  n.w = n.kind === 'concept' ? G.wConcept : G.wToken;
+  const el = h('div', { class: 'gnode ' + n.kind });
+  n.tokens.forEach(tok => {
+    const [term, tag] = splitName(tok.name);
+    el.append(h('div', { class: 'tokrow' + (tok.diff ? ' diff' : '') + (tok.def ? ' def' : '') },
+      h('span', { class: 'g-term', text: term }),
+      (tag || tok.id) ? h('span', { class: 'g-sub' }, tag, tag && tok.id ? ' ' : '', tok.id ? h('span', { class: 'sctid', text: tok.id }) : null) : null));
+  });
+  if (n.uncovered) el.append(h('div', { class: 'tokrow unc' + (n.diff ? ' diff' : ''), text: '∅' }));
+  return el;
+}
+let measureCtx = null;
+function textWidth(s) {
+  if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+  measureCtx.font = '650 11.5px ' + getComputedStyle(document.body).fontFamily;
+  return measureCtx.measureText(s).width;
+}
+function graphEl(root) {
+  const canvas = h('div', { class: 'gcanvas' });
+  pendingLayouts.push(() => layoutGraph(canvas, root));
+  return h('div', { class: 'graph' }, canvas);
+}
+function layoutGraph(canvas, root) {
+  const all = [];
+  (function walk(n, d) {
+    n.depth = d; n.el = gNodeEl(n); n.el.style.width = n.w + 'px';
+    canvas.append(n.el); all.push(n);
+    n.children.forEach(ch => walk(ch, d + 1));
+  })(root, 0);
+  all.forEach(n => { n.h = n.el.offsetHeight; });
+  const colW = [];
+  all.forEach(n => { colW[n.depth] = Math.max(colW[n.depth] || 0, n.w); });
+  const labW = [];
+  all.forEach(n => { if (n.label) labW[n.depth] = Math.max(labW[n.depth] || 0, textWidth(n.label)); });
+  const colX = [0];
+  for (let d = 1; d < colW.length; d++) colX[d] = colX[d - 1] + colW[d - 1] + Math.max(G.gap, (labW[d] || 0) + 44);
+  all.forEach(n => { n.x = colX[n.depth]; });
+  const shift = (n, dy) => { n.y += dy; n.children.forEach(ch => shift(ch, dy)); };
+  function place(n, y0) {
+    if (!n.children.length) { n.y = y0; return y0 + n.h + G.vgap; }
+    let y = y0;
+    n.children.forEach(ch => { y = place(ch, y); });
+    const f = n.children[0], l = n.children[n.children.length - 1];
+    n.y = (f.y + f.h / 2 + l.y + l.h / 2) / 2 - n.h / 2;
+    if (n.y < y0) { const dy = y0 - n.y; n.children.forEach(ch => shift(ch, dy)); n.y = y0; y += dy; }
+    return Math.max(y, n.y + n.h + G.vgap);
+  }
+  const H = Math.max(place(root, 0) - G.vgap, 1);
+  const W = Math.max(...all.map(n => n.x + n.w));
+  all.forEach(n => { n.el.style.left = n.x + 'px'; n.el.style.top = n.y + 'px'; });
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const mid = 'arr' + (++markerUid);
+  const svg = sv('svg', { class: 'gedges', width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, 'aria-hidden': 'true' });
+  const marker = sv('marker', { id: mid, viewBox: '0 0 8 8', refX: 8, refY: 4, markerWidth: 8, markerHeight: 8, markerUnits: 'userSpaceOnUse', orient: 'auto' });
+  marker.append(sv('path', { d: 'M0,0 L8,4 L0,8 z' }));
+  const defs = sv('defs'); defs.append(marker); svg.append(defs);
+  all.forEach(n => n.children.forEach(ch => {
+    const sx = n.x + n.w, sy = n.y + n.h / 2, tx = ch.x, ty = ch.y + ch.h / 2, bx = sx + 16;
+    svg.append(sv('path', { class: 'edge', d: `M${sx},${sy} H${bx} V${ty} H${tx - 1}`, 'marker-end': `url(#${mid})` }));
+    if (ch.label) {
+      const tx2 = sv('text', { x: bx + 8, y: ty - 6, class: ch.def ? 'def' : '' });
+      tx2.textContent = ch.label;
+      svg.append(tx2);
+    }
+  }));
+  canvas.prepend(svg);
+}
+
+/* ---------- representation dispatch ---------- */
+function definitionView(c) { return state.view === 'graph' ? graphEl(definitionGraph(c, c.definition)) : definitionTreeEl(c.definition); }
+function versionView(c, x) { return state.view === 'graph' ? graphEl(versionGraph(c, c[x])) : contextEl(c[x], true); }
+
+/* ---------- rendering: chrome ---------- */
+const $ = id => document.getElementById(id);
+function renderMeta() {
+  const meta = $('t-meta');
+  const parts = [t('rater') + ': ' + (state.rater_id || '—')];
+  if (!storageOK) { meta.textContent = parts.concat(t('nosave')).join(' · '); meta.classList.add('warn'); return; }
+  meta.classList.remove('warn');
+  if (lastSaved) parts.push(t('saved', { time: lastSaved }));
+  if (state.lastExport) parts.push(t('downloaded', { time: state.lastExport }));
+  meta.textContent = parts.join(' · ');
+}
+function renderChrome() {
+  document.documentElement.lang = state.lang;
+  document.title = t('title');
+  $('t-title').textContent = t('title');
+  $('b-instr').textContent = showIntro ? t('back') : t('instructions');
+  $('b-instr').classList.toggle('hidden', showIntro && !state.introSeen);
+  $('b-download').textContent = t('download');
+  document.querySelectorAll('[data-lang]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === state.lang)));
+  document.querySelectorAll('[data-view]').forEach(b => {
+    b.textContent = t('view_' + b.dataset.view);
+    b.setAttribute('aria-pressed', String(b.dataset.view === state.view));
+  });
+  $('progress-fill').style.width = (100 * answeredCount() / C.length) + '%';
+  renderMeta();
+  const dots = document.getElementById('dots');
+  if (dots) renderDots(dots);
+  const done = document.getElementById('done-box');
+  if (done) done.classList.toggle('hidden', answeredCount() < C.length);
+}
+function renderDots(dots) {
+  dots.replaceChildren(...C.map((c, i) => {
+    const a = state.answers[c.concept_id];
+    return h('button', {
+      type: 'button',
+      class: 'dot' + (a && a.choice ? ' done' : '') + (i === state.current ? ' cur' : ''),
+      'aria-label': t('concept_of', { i: i + 1, total: C.length }),
+      'aria-current': i === state.current ? 'true' : null,
+      onclick: () => go(i),
+      text: i + 1
+    });
+  }));
+}
+
+/* ---------- views ---------- */
+function render() {
+  const main = $('main');
+  pendingLayouts = [];
+  main.replaceChildren();
+  if (DATA.demo) main.append(h('div', { class: 'banner', text: t('demo') }));
+  main.append(showIntro ? introView() : conceptView());
+  pendingLayouts.splice(0).forEach(f => f());
+  renderChrome();
+}
+
+function introView() {
+  const card = h('section', { class: 'card intro' });
+  card.innerHTML = t('instr_html').split('{who}').join(esc(DATA.return_to || ''));
+  const row = h('div', { class: 'row' });
+  let input = null;
+  if (!DATA.rater_id) {
+    input = h('input', { type: 'text', id: 'rater-input', value: state.rater_id || '', autocomplete: 'off' });
+    row.append(h('div', { style: 'flex:1;min-width:180px' }, h('label', { for: 'rater-input', text: t('rater_input') }), input));
+  }
+  row.append(h('button', {
+    type: 'button', class: 'btn btn-primary',
+    text: state.introSeen ? t('back') : t('start'),
+    onclick: () => {
+      if (input) { const v = input.value.trim(); if (!v) { input.focus(); return; } if (v !== state.rater_id) state.order = null; state.rater_id = v; applyOrder(); }
+      state.introSeen = true; showIntro = false; persist(); render(); startTimer(); window.scrollTo(0, 0);
+    }
+  }));
+  card.append(row);
+  return card;
+}
+
+function conceptView() {
+  const i = state.current;
+  const c = C[i];
+  const a = ans(i);
+  const wrap = h('div');
+
+  wrap.append(h('div', { class: 'eyebrow', text: t('concept_of', { i: i + 1, total: C.length }) }));
+  wrap.append(h('h1', { class: 'concept' }, c.name, h('span', { class: 'sctid', text: c.concept_id })));
+
+  // official definition + per-concept checkbox
+  const defBox = h('input', {
+    type: 'checkbox', checked: a.def_insufficient,
+    onchange: e => { a.def_insufficient = e.target.checked; touch(a); persist(); }
+  });
+  const prim = c.status === 'primitive';
+  wrap.append(h('section', { class: 'card def' },
+    h('div', { class: 'card-label' }, t('def_label'),
+      c.status ? h('span', { class: 'status', text: t(prim ? 'status_primitive' : 'status_defined') }) : null),
+    prim ? h('p', { class: 'prim-note', text: t('prim_note') }) : null,
+    definitionView(c),
+    prim ? null : h('div', { class: 'def-foot' }, h('label', { class: 'check' }, defBox, h('span', { text: t('def_insufficient') })))
+  ));
+
+  wrap.append(h('p', { class: 'diff-hint' }, h('b', { text: t('diff_hint_b') }), ' ', t('diff_hint'), ' \u00a0 ',
+    h('span', { class: 'def-legend', text: t('def_legend') }), ' ', t('def_legend_text')));
+
+  // versions A and B (side by side in tree view, stacked in graph view)
+  const versions = h('div', { class: 'versions' + (state.view === 'graph' ? ' stack' : '') });
+  ['A', 'B'].forEach(x => {
+    const checks = h('div', { class: 'checks' });
+    ISSUES.forEach(k => {
+      const cb = h('input', {
+        type: 'checkbox', checked: a.issues[x][k],
+        onchange: e => { a.issues[x][k] = e.target.checked; touch(a); persist(); }
+      });
+      checks.append(h('label', { class: 'check' }, cb, h('span', { text: t(k) })));
+    });
+    versions.append(h('section', { class: 'card ver' },
+      h('div', { class: 'ver-head' }, h('span', { class: 'badge', text: x }), h('span', { class: 'ver-title', text: t('version', { x }) })),
+      versionView(c, x),
+      h('fieldset', { class: 'issues' }, h('legend', { text: t('issues_legend', { x }) }), checks)
+    ));
+  });
+  wrap.append(versions);
+
+  // main question
+  const seg = h('div', { class: 'seg' });
+  [['A', t('choice_A')], ['equal', t('choice_equal')], ['B', t('choice_B')]].forEach(([val, label]) => {
+    const radio = h('input', {
+      type: 'radio', name: 'choice', value: val, checked: a.choice === val,
+      onchange: () => {
+        a.choice = val; a.view = state.view; touch(a); persist();
+        seg.querySelectorAll('label').forEach(l => l.classList.toggle('sel', l.querySelector('input').checked));
+        renderChrome();
+      }
+    });
+    seg.append(h('label', { class: a.choice === val ? 'sel' : '' }, radio, label));
+  });
+  wrap.append(h('section', { class: 'card question' }, h('fieldset', {}, h('legend', { text: t('question') }), seg)));
+
+  // comment
+  let typing = null;
+  const ta = h('textarea', {
+    id: 'comment',
+    oninput: e => { a.comment = e.target.value; touch(a); clearTimeout(typing); typing = setTimeout(persist, 400); }
+  });
+  ta.value = a.comment;
+  wrap.append(h('div', { class: 'comment' }, h('label', { for: 'comment', text: t('comment') }), ta));
+
+  // navigation
+  wrap.append(h('nav', { class: 'navbar' },
+    h('button', { type: 'button', class: 'btn', disabled: i === 0, onclick: () => go(i - 1), text: t('prev') }),
+    h('div', { class: 'dots', id: 'dots' }),
+    h('button', { type: 'button', class: 'btn', disabled: i === C.length - 1, onclick: () => go(i + 1), text: t('next') })
+  ));
+
+  // completion
+  wrap.append(h('section', { class: 'card done-box hidden', id: 'done-box' },
+    h('h2', { text: t('done_title') }),
+    h('p', { text: t('done_text', { who: DATA.return_to || '' }) }),
+    h('button', { type: 'button', class: 'btn btn-primary', onclick: download, text: t('download') })
+  ));
+  return wrap;
+}
+
+function go(i) {
+  if (i < 0 || i >= C.length || i === state.current) return;
+  stopTimer();
+  state.current = i;
+  persist();
+  render();
+  startTimer();
+  window.scrollTo(0, 0);
+}
+
+/* ---------- export (positions A/B only: the method key stays with the study coordinator) ---------- */
+function download() {
+  stopTimer(); startTimer();
+  const header = ['study_id', 'form_version', 'rater_id', 'item', 'position', 'concept_id', 'concept_name', 'choice', 'view_at_answer',
+    'A_incorrect_or_ambiguous', 'A_information_absent', 'A_precision_lost', 'A_redundant',
+    'B_incorrect_or_ambiguous', 'B_information_absent', 'B_precision_lost', 'B_redundant',
+    'definition_insufficient', 'comment', 'seconds_spent', 'last_modified'];
+  const pos = new Map(C.map((c, i) => [c.concept_id, i + 1]));
+  const rows = DATA.concepts.map((c, i) => {
+    const a = state.answers[c.concept_id] || blankAnswer();
+    const b = v => (v ? 1 : 0);
+    return [DATA.study_id, DATA.form_version || '', state.rater_id, c.item || i + 1, pos.get(c.concept_id), c.concept_id, c.name, a.choice, a.view || '',
+      b(a.issues.A.incorrect), b(a.issues.A.absent), b(a.issues.A.precision), b(a.issues.A.redundant),
+      b(a.issues.B.incorrect), b(a.issues.B.absent), b(a.issues.B.precision), b(a.issues.B.redundant),
+      b(a.def_insufficient), a.comment, Math.round(a.seconds), a.modified];
+  });
+  const cell = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const csv = '﻿' + [header, ...rows].map(r => r.map(cell).join(',')).join('\r\n') + '\r\n';
+  const now = new Date();
+  const p2 = n => String(n).padStart(2, '0');
+  const stamp = now.getFullYear() + p2(now.getMonth() + 1) + p2(now.getDate()) + '_' + p2(now.getHours()) + p2(now.getMinutes());
+  const safe = s => String(s).replace(/[^A-Za-z0-9_-]+/g, '_');
+  const name = 'answers_' + safe(DATA.study_id) + '_' + safe(state.rater_id || 'rater') + '_' + stamp + '.csv';
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const link = h('a', { href: url, download: name });
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  state.lastExport = clock(now);
+  persist();
+}
+
+/* ---------- wiring ---------- */
+$('b-download').addEventListener('click', download);
+$('b-instr').addEventListener('click', () => {
+  if (showIntro) { showIntro = false; render(); startTimer(); }
+  else { stopTimer(); persist(); showIntro = true; render(); }
+  window.scrollTo(0, 0);
+});
+document.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => {
+  state.lang = b.dataset.lang; persist();
+  const y = window.scrollY; render(); window.scrollTo(0, y);
+}));
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
+  if (state.view === b.dataset.view) return;
+  state.view = b.dataset.view; persist();
+  const y = window.scrollY; render(); window.scrollTo(0, y);
+}));
+
+render();
+startTimer();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+\begin{abstract}
+Foundation models trained on electronic health records (EHRs) usually give every clinical code its own embedding.
+Because code usage is long-tailed, most codes are too rare for their embeddings to be learned, and frequency-based vocabulary truncation discards them; either way, the meaning of rare concepts is poorly learned or lost.
+We propose a tokenizer that represents every concept of an ontology structured as a directed acyclic graph with a small vocabulary of the ontology's own concepts, chosen to preserve the meaning that the ontology states for them.
+Tokens are selected by lazy greedy maximization of a semantic coverage objective whose credit decays with each hop, and each concept is written as a context tree that records through which relationship each token is reached.
+We measure this ontology-based meaning with a proximity-coverage score that weights each branch of a concept's definition, together with uniqueness, unknown rate and length.
+On 46,150 SNOMED~CT concepts mapped at a university hospital, our method with a decay of $\lambda = 0.9$ ranked first among 19 configurations at every compression level, ahead of degree-, centrality- and set-cover-based selections.
+Applied to 279 million clinical events, a vocabulary of 5,000 tokens represented all 16,370 concepts of the data, including the two thirds that are rare and that frequency truncation discards entirely, with a mean proximity-coverage score of 0.88 for these rare concepts.
+In a blinded comparison with the closest baseline, semanticians \needresults{preferred our representations for X\% of the concepts}.
+Ontology-driven tokenization thus yields compact, auditable vocabularies in which rare concepts are expressed through tokens shared with frequent concepts, with limited loss of meaning.
+\end{abstract}

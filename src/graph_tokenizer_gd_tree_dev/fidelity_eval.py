@@ -5,17 +5,22 @@ Same context trees as eval.py (tokenizer.tokenize_all_rel), but with the metric 
 redrafted paper:
 
   core metrics (one value per token set T)
-    semantic_fidelity    mean over concepts of f_m = completeness_m x proximity_m   (higher = better)
+    br_weighted_PC       mean over concepts of the branch-weighted PC                (higher = better)
     unique_rate          share of concepts that have >= 1 token AND a context tree no other
                          concept has                                                (higher = better)
     unknown_rate         share of concepts without any token                         (lower  = better)
     tokens_per_concept   mean number of token leaves per context tree                (lower  = better)
 
   secondary / diagnostic
+    num_effective_token    number of distinct tokens used by at least one concept   (higher = less waste)
     uncovered_branch_rate  share of concepts with >= 1 branch that ends without a token
-    completeness           mean over concepts of n_m / (n_m + u_m)
-    proximity              mean over REPRESENTED concepts (n_m > 0) of 1 - mean token depth / (D + 1)
-    fidelity_median, fidelity_p10, fidelity_p25   distribution of f_m
+    br_completeness        mean probability that the branch-weighted walk ends on a token
+    br_proximity           mean over REPRESENTED concepts of br_weighted_PC / br_completeness
+    br_weighted_PC_median, _p10, _p25   distribution of the per-concept br_weighted_PC
+
+  legacy (still computed for versioning, not used in the analysis)
+    semantic_fidelity    the current PC: mean over concepts of f_m = completeness_m x proximity_m
+    completeness, proximity, fidelity_median, fidelity_p10, fidelity_p25
 
 Per concept m (n_m token leaves at depths l_1..l_n, u_m uncovered branches):
     completeness_m = n_m / (n_m + u_m)
@@ -23,10 +28,17 @@ Per concept m (n_m token leaves at depths l_1..l_n, u_m uncovered branches):
     fidelity_m     = completeness_m * proximity_m
                    = 1 - mean over the n_m + u_m entries of depth / (D + 1),
                      uncovered entries counted at depth D + 1
-fidelity_m is exactly the per-concept "distance score" of eval.py (uncovered branches at D + 1);
-the product form only makes its two components visible.
+fidelity_m is exactly the per-concept "distance score" of eval.py (uncovered branches at D + 1).
+Every branch end weighs the same, so many tokens in one branch dilute an uncovered branch.
 
-Semantic coverage (Eq. 1 at lambda = 1) is no longer computed here.
+br_weighted_PC_m (eval.br_weighted_pc_per_concept): same expansion, but every concept splits its
+weight equally between its outgoing relationships (nested average instead of flat average):
+    v(u, d) = 1 - d / (D + 1) if u is a token; 0 if d = D or u is a dead end;
+              mean of v(w, d + 1) over the out-edges of u otherwise;    br_weighted_PC_m = v(m, 0)
+    br_weighted_PC_m = br_completeness_m * br_proximity_m
+
+Semantic coverage (Eq. 1 at lambda = 1) is no longer computed here; it equals the mean of
+br_completeness.
 
 The worker functions are module-level so that multiprocessing works on Windows (spawn), where
 functions defined inside a notebook cannot be sent to worker processes.
@@ -36,16 +48,30 @@ from collections import Counter
 
 import polars as pl
 
-from src.graph_tokenizer_gd_tree_dev.eval import _iter_contexts, build_context_trees
+from src.graph_tokenizer_gd_tree_dev.eval import (
+    _iter_contexts,
+    br_weighted_pc_per_concept,
+    build_context_trees,
+    num_effective_token,
+)
 from src.graph_tokenizer_gd_tree_dev.tokenizer import signature
 
-CORE_METRICS = ["semantic_fidelity", "unique_rate", "unknown_rate", "tokens_per_concept"]
+CORE_METRICS = ["br_weighted_PC", "unique_rate", "unknown_rate", "tokens_per_concept"]
+LEGACY_METRICS = ["semantic_fidelity", "completeness", "proximity", "fidelity_median", "fidelity_p10", "fidelity_p25"]
 HIGHER_IS_BETTER = {
-    "semantic_fidelity": True,
+    "br_weighted_PC": True,
     "unique_rate": True,
     "unknown_rate": False,
     "tokens_per_concept": False,
+    "num_effective_token": True,
     "uncovered_branch_rate": False,
+    "br_completeness": True,
+    "br_proximity": True,
+    "br_weighted_PC_median": True,
+    "br_weighted_PC_p10": True,
+    "br_weighted_PC_p25": True,
+    # legacy
+    "semantic_fidelity": True,
     "completeness": True,
     "proximity": True,
     "fidelity_median": True,
@@ -76,8 +102,12 @@ def concept_record(tree, D):
     }
 
 
-def per_concept_table(trees, D):
-    """One row per concept: concept_record + signature group size and id."""
+def per_concept_table(trees, D, adj=None, T=None):
+    """
+    One row per concept: concept_record + signature group size and id.
+    With adj (tokenizer.build_out_adjacency) and T, the branch-weighted columns are added:
+    br_weighted_PC, br_completeness, br_proximity.
+    """
     sigs = {c: signature(t) for c, t in trees.items()}
     counts = Counter(sigs.values())
     sig_id = {}
@@ -88,36 +118,59 @@ def per_concept_table(trees, D):
         r["group_size"] = counts[sigs[c]]
         r["signature_id"] = sig_id.setdefault(sigs[c], len(sig_id))
         rows.append(r)
-    return pl.DataFrame(rows, infer_schema_length=None).with_columns(
+    pc = pl.DataFrame(rows, infer_schema_length=None).with_columns(
         (pl.col("n_tokens") == 0).alias("unknown"),
         (pl.col("n_uncovered") > 0).alias("has_uncovered_branch"),
         ((pl.col("group_size") == 1) & (pl.col("n_tokens") > 0)).alias("unique"),
     )
+    if adj is not None:
+        if T is None:
+            raise ValueError("per_concept_table: T is needed together with adj")
+        br = br_weighted_pc_per_concept(list(trees), adj, T, D)
+        pc = pc.with_columns([pl.Series(name, values) for name, values in br.items()])
+    return pc
 
 
-def summarize(pc):
-    """Aggregate metrics of one token set from its per-concept table."""
+def summarize(pc, trees=None):
+    """Aggregate metrics of one token set from its per-concept table (and its trees, for
+    num_effective_token)."""
     f = pc["fidelity"]
     represented = pc.filter(~pl.col("unknown"))
-    return {
-        "semantic_fidelity": float(f.mean()),
+    out = {}
+    if "br_weighted_PC" in pc.columns:
+        b = pc["br_weighted_PC"]
+        out.update({
+            "br_weighted_PC": float(b.mean()),
+            "br_completeness": float(pc["br_completeness"].mean()),
+            "br_proximity": float(represented["br_proximity"].mean()) if represented.height else 0.0,
+            "br_weighted_PC_median": float(b.median()),
+            "br_weighted_PC_p10": float(b.quantile(0.10, "nearest")),
+            "br_weighted_PC_p25": float(b.quantile(0.25, "nearest")),
+        })
+    out.update({
         "unique_rate": float(pc["unique"].mean()),
         "unknown_rate": float(pc["unknown"].mean()),
         "tokens_per_concept": float(pc["n_tokens"].mean()),
         "uncovered_branch_rate": float(pc["has_uncovered_branch"].mean()),
+        # legacy: the current PC and its parts
+        "semantic_fidelity": float(f.mean()),
         "completeness": float(pc["completeness"].mean()),
         "proximity": float(represented["proximity"].mean()) if represented.height else 0.0,
         "fidelity_median": float(f.median()),
         "fidelity_p10": float(f.quantile(0.10, "nearest")),
         "fidelity_p25": float(f.quantile(0.25, "nearest")),
-    }
+    })
+    if trees is not None:
+        out["num_effective_token"] = num_effective_token(trees)
+    return out
 
 
 def evaluate_token_set(M, adj, T, D, id_to_label=None, return_per_concept=False):
     """All metrics of one token set T for the concepts M (serial)."""
+    T = set(T)
     trees = build_context_trees(M, adj, T, D, id_to_label)
-    pc = per_concept_table(trees, D)
-    out = summarize(pc)
+    pc = per_concept_table(trees, D, adj=adj, T=T)
+    out = summarize(pc, trees)
     return (out, pc) if return_per_concept else out
 
 

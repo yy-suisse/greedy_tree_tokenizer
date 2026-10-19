@@ -252,7 +252,7 @@ def _worker_coverage_score(task):
     caller can match results back to their (k, iter) / (category, file_type, k) origin after
     imap_unordered reorders them. Returns (label, metrics) where metrics is eval.evaluate's dict
     (conciseness, distance_score, uniqueness_entropy, unk_rate, uncovered_rate, tree_complexity,
-    exact_rate, unique_rate) plus semantic_coverage -- both computed from the same T against the
+    exact_rate, unique_rate, br_weighted_PC, num_effective_token) plus semantic_coverage -- both computed from the same T against the
     same shared graph structures, so bundling them here avoids building the context trees or
     shipping T over IPC twice.
     """

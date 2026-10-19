@@ -5,12 +5,23 @@ Evaluation metrics for a selected token set T, complementary to semantic coverag
 All metrics here are computed from the context trees (new_tokenizer.tokenize_all_rel)
 that T actually produces for the mapped concepts M -- i.e. they evaluate the *realized*
 representation, not the coverage score used to select T in the first place.
+
+Two exceptions, added later:
+  br_weighted_PC       branch-weighted proximity-coverage. Computed on the same expansion as the
+                       context trees (tokenizer.expand), but every concept splits its weight equally
+                       between its outgoing relationships, so many tokens in one branch can no longer
+                       hide a branch that ends without a token. See the block "branch-weighted PC" below.
+  num_effective_token  number of distinct tokens of T that appear in at least one context tree,
+                       i.e. the part of the vocabulary that the concepts actually use.
 """
 
 import math
 from collections import Counter
+from functools import lru_cache
 
+import numpy as np
 import polars as pl
+import scipy.sparse as sp
 
 from src.graph_tokenizer_gd_tree_dev.tokenizer import signature, tokenize_all_rel
 
@@ -142,11 +153,144 @@ def exact_rate(M, T):
     return sum(1 for c in M if c in T) / len(M) if M else 0.0
 
 
+# --- number of effectively used tokens --------------------------------------------------------
+
+
+def effective_tokens(trees):
+    """Distinct tokens that appear in at least one context tree (the used part of T)."""
+    return {tok for tree in trees.values() for ctx in _iter_contexts(tree) for tok, _ in ctx.tokens}
+
+
+def num_effective_token(trees):
+    """
+    Number of distinct tokens of T that at least one concept uses once it is tokenized.
+    A selected token is unused when no concept reaches it before reaching another token
+    (e.g. a general hub whose concepts all stop at more specific tokens). Higher = less of
+    the vocabulary is wasted; at most |T|.
+    """
+    return len(effective_tokens(trees))
+
+
+# --- branch-weighted PC (br_weighted_PC) --------------------------------------------------------
+#
+# Same expansion as tokenizer.expand: the token test comes before the depth test, the expansion
+# stops at the first token, and a branch is uncovered at a dead end or at depth D. The difference
+# with distance_score (the current PC) is only the weighting of the branch ends:
+#   * current PC: every branch end of the context tree weighs the same (flat average);
+#   * br_weighted_PC: every concept splits its weight equally between its outgoing relationships
+#     (nested average), so many tokens under one relationship cannot hide another relationship
+#     that ends without a token.
+#
+#   v(u, d) = 1 - d / (D + 1)                                     if u is a token
+#           = 0                                                   if u is not a token and (d = D or u has no out-edge)
+#           = mean over the out-edges (r, w) of u of v(w, d + 1)  otherwise
+#   br_weighted_PC(m) = v(m, 0)
+#
+# Read as a random walk from m that picks an outgoing relationship uniformly at every step and
+# stops at the first token J hops away: br_weighted_PC(m) = E[1 - J / (D + 1)], with 0 when no
+# token is found within D hops. It splits like the current PC:
+#   br_completeness(m) = probability that the walk ends on a token (= semantic coverage at lambda = 1)
+#   br_proximity(m)    = br_weighted_PC(m) / br_completeness(m)   (mean 1 - J/(D+1) given a token is found)
+#   br_weighted_PC(m)  = br_completeness(m) * br_proximity(m)
+#
+# Out-edges are counted once per relationship occurrence (one entry per typed edge in adj), like
+# the out-degree of the coverage objective. The context tree is not needed: the vectorised version
+# below runs D sparse matrix products over the whole graph, i.e. every concept at once.
+
+_WALK_CACHE = {"adj": None, "P": None, "node_to_idx": None}
+
+
+def build_walk_transition(adj):
+    """
+    Row-normalised out-adjacency of the expansion graph (adj from tokenizer.build_out_adjacency).
+    P[u, w] = (number of relationships u -> w) / out-degree(u); rows of dead ends are 0.
+    Returns (P, node_to_idx).
+    """
+    node_to_idx = {u: i for i, u in enumerate(adj)}
+    for edges in adj.values():
+        for _, w in edges:
+            if w not in node_to_idx:
+                node_to_idx[w] = len(node_to_idx)
+    n = len(node_to_idx)
+    rows, cols = [], []
+    for u, edges in adj.items():
+        i = node_to_idx[u]
+        for _, w in edges:
+            rows.append(i)
+            cols.append(node_to_idx[w])
+    A = sp.csr_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n))
+    out_degree = np.asarray(A.sum(axis=1)).ravel()
+    inv = np.divide(1.0, out_degree, out=np.zeros(n), where=out_degree > 0)
+    return (sp.diags(inv) @ A).tocsr(), node_to_idx
+
+
+def _walk_transition(adj):
+    """build_walk_transition, built once per adjacency object (per process) and then reused."""
+    if _WALK_CACHE["adj"] is not adj:
+        P, node_to_idx = build_walk_transition(adj)
+        _WALK_CACHE.update(adj=adj, P=P, node_to_idx=node_to_idx)
+    return _WALK_CACHE["P"], _WALK_CACHE["node_to_idx"]
+
+
+def br_weighted_pc_per_concept(M, adj, T, D):
+    """
+    Per-concept branch-weighted PC for the concepts M (in the order of M).
+    Returns a dict of numpy arrays: br_weighted_PC, br_completeness, br_proximity
+    (br_proximity is 0 when no token is reached, like proximity in fidelity_eval).
+    """
+    P, idx = _walk_transition(adj)
+    n = P.shape[0]
+    T = set(T)
+    t = np.zeros(n)
+    t[[idx[x] for x in T if x in idx]] = 1.0
+    not_t = 1.0 - t
+    W = t / (D + 1)                     # remaining budget h = 0 (depth D): a token there scores 1/(D+1)
+    R = t.copy()                        # probability of ending on a token
+    for h in range(1, D + 1):           # remaining budget h <-> depth D - h
+        W = t * ((h + 1) / (D + 1)) + not_t * (P @ W)
+        R = t + not_t * (P @ R)
+    M = list(M)
+    pos = np.array([idx.get(m, -1) for m in M], dtype=np.int64)
+    in_graph = pos >= 0
+    own = np.array([1.0 if m in T else 0.0 for m in M])     # concepts outside the graph: token or not
+    w = np.where(in_graph, W[np.where(in_graph, pos, 0)], own)
+    r = np.where(in_graph, R[np.where(in_graph, pos, 0)], own)
+    p = np.divide(w, r, out=np.zeros_like(w), where=r > 0)
+    return {"br_weighted_PC": w, "br_completeness": r, "br_proximity": p}
+
+
+def br_weighted_pc(M, adj, T, D):
+    """Mean branch-weighted PC over the concepts M (higher = better)."""
+    M = list(dict.fromkeys(M))
+    return float(br_weighted_pc_per_concept(M, adj, T, D)["br_weighted_PC"].mean()) if M else 0.0
+
+
+def br_weighted_pc_concept(c, adj, T, D):
+    """
+    Reference implementation for one concept, written like tokenizer.expand (slow; for checks
+    and worked examples). Must equal br_weighted_pc_per_concept([c], adj, T, D).
+    """
+    T = set(T)
+
+    @lru_cache(maxsize=None)
+    def v(u, d):
+        if u in T:
+            return 1 - d / (D + 1)
+        edges = adj.get(u, ())
+        if d == D or not edges:
+            return 0.0
+        return sum(v(w, d + 1) for _, w in edges) / len(edges)
+
+    return v(c, 0)
+
+
 def evaluate(M, adj, T, D, id_to_label=None):
     """
-    Compute all eight metrics at once for a given token set T, building the context trees
-    only once and reusing them across metrics. Returns a dict of metric_name -> value.
+    Compute all metrics at once for a given token set T, building the context trees only once
+    and reusing them across metrics. Returns a dict of metric_name -> value.
+    distance_score is the current PC (kept for versioning); br_weighted_PC is the branch-weighted PC.
     """
+    M = list(dict.fromkeys(M))
     trees = build_context_trees(M, adj, T, D, id_to_label)
     return {
         "conciseness": conciseness(trees),
@@ -157,16 +301,20 @@ def evaluate(M, adj, T, D, id_to_label=None):
         "tree_complexity": tree_complexity(trees),
         "exact_rate": exact_rate(M, T),
         "unique_rate": unique_rate(trees),
+        "br_weighted_PC": br_weighted_pc(M, adj, T, D),
+        "num_effective_token": num_effective_token(trees),
     }
 
 
-def per_concept_metrics(trees, T, D):
+def per_concept_metrics(trees, T, D, adj=None):
     """
     Per-concept values of conciseness/distance_score/tree_complexity/unk_rate/uncovered_rate/
     exact_rate/unique_rate -- i.e. every per-tree quantity evaluate() averages/counts over
     before returning a single scalar -- as one row per concept instead. Lets callers stratify
     (e.g. group_by a concept's own concept_type, from mapped_concepts.parquet) instead of only
-    ever seeing the population mean evaluate() returns.
+    ever seeing the population mean evaluate() returns. With adj (tokenizer.build_out_adjacency),
+    br_weighted_PC is added as well. num_effective_token is a property of the whole vocabulary,
+    not of one concept, so it has no per-concept column.
 
     uniqueness_entropy isn't included: it's a property of the *distribution* of signatures
     across a population of concepts, not of any single concept's tree, so it doesn't decompose
@@ -195,4 +343,7 @@ def per_concept_metrics(trees, T, D):
             "exact_rate": c in T,
             "unique_rate": sig_counts[sigs[c]] == 1,
         })
-    return pl.DataFrame(rows)
+    df = pl.DataFrame(rows)
+    if adj is not None:
+        df = df.with_columns(pl.Series("br_weighted_PC", br_weighted_pc_per_concept(list(trees), adj, T, D)["br_weighted_PC"]))
+    return df

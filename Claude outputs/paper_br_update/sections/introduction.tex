@@ -1,0 +1,75 @@
+\section{Introduction}
+\label{sec:introduction}
+
+Foundation models trained on electronic health records (EHRs) learn from long sequences of coded clinical events, such as diagnoses, procedures, prescriptions and laboratory tests, and can then be adapted to many downstream tasks \cite{li2020behrt, yang2023transformehr}.
+These events are coded with standardized vocabularies, such as ICD, RxNorm, LOINC and SNOMED~CT, which make data comparable across institutions.
+
+Most of these models give every code its own embedding, learned only from the occurrences of that code.
+Code usage, however, is long-tailed \cite{zhang2023longtailed}: a few codes produce most events, and most codes are rare.
+The embeddings of rare codes are therefore poorly learned \cite{gowda2020finding, land2024fishing}.
+The common remedy, keeping only the $k$ most frequent codes and mapping the others to an unknown token, removes the rare codes altogether.
+Either way, the meaning of rare concepts, which include specific diagnoses and procedures that can matter clinically, is poorly learned or lost.
+
+Yet the meaning of a rare concept is not unknown: clinical ontologies state it explicitly.
+SNOMED~CT, for instance, is a directed acyclic graph (DAG) in which each concept is linked to its more general parents and to the values of its attributes, such as its finding site or its morphology.
+A rare concept is thus related to more frequent concepts that describe parts of its meaning.
+This suggests representing each concept with a small vocabulary of ontology concepts, chosen so that every concept keeps as much of its meaning as possible.
+
+Existing vocabulary strategies do not do this (Table~\ref{tab:related-approaches}).
+Data-driven vocabularies ignore the ontology: the full vocabulary leaves rare codes under-trained, frequency truncation drops them, and subword methods such as Byte-Pair Encoding \cite{sennrich2016bpe, kudo2018sentencepiece}, adapted to code sequences \cite{unistruct}, merge codes by co-occurrence, which reflects local coding practice rather than clinical meaning.
+Ontology-guided methods use the hierarchy but lose information or auditability.
+Roll-up replaces rare codes with a broader ancestor and merges distinct subtypes \cite{redekop2025zeroshot}.
+Splitting codes into prefix tokens \cite{renc2024ethos, waxler2025comet} works only when the identifier itself encodes the hierarchy, as in ICD-10 or ATC.
+GRAM \cite{choi2017gram} keeps every code and borrows information from ancestors, but uses only parent--child edges.
+MedTok \cite{su2025medtok} compresses codes into a learned codebook whose entries are latent vectors rather than clinical concepts \cite{vandenoord2017vqvae}.
+Outside the clinical domain, NodePiece \cite{galkin2022nodepiece} encodes the nodes of a knowledge graph by a few anchor nodes, chosen by centrality, and ignores the relationships along the path to each anchor.
+No existing strategy compresses the vocabulary while keeping every concept, the relationships that define it, and tokens that are themselves interpretable concepts.
+
+\begin{table*}[t]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llccl}
+\toprule
+\textbf{Approach} & \textbf{Ontology used} & \textbf{Compresses} & \textbf{Auditable} & \textbf{Main limitation} \\
+\midrule
+Full vocabulary & none & \texttimes & \checkmark & rare codes under-trained \\
+Frequency top-$k$ & none & \checkmark & \checkmark & rare concepts dropped \\
+Subword / BPE \cite{sennrich2016bpe, unistruct} & none (co-occurrence) & \checkmark & \texttimes & order-dependent; reflects local coding practice \\
+Hierarchy roll-up \cite{redekop2025zeroshot} & \isa{} only & \checkmark & \checkmark & distinct subtypes merged into a parent \\
+Identifier prefix split \cite{renc2024ethos, waxler2025comet} & implicit (code syntax) & \checkmark & partial & needs hierarchical identifiers \\
+GRAM \cite{choi2017gram} & \isa{} only & \texttimes & \checkmark & no compression; attributes ignored \\
+MedTok \cite{su2025medtok} & graph and text & \checkmark & \texttimes & latent codebook, not human-readable \\
+NodePiece \cite{galkin2022nodepiece} & general graph & \checkmark & partial & centrality anchors; relations on paths ignored \\
+\midrule
+\textbf{Ours} & \textbf{full DAG, all relationships} & \checkmark & \checkmark & longer sequences \\
+\bottomrule
+\end{tabular}%
+}
+\caption{Vocabulary strategies for EHR foundation models.}
+\label{tab:related-approaches}
+\end{table*}
+
+We propose a tokenizer that fills this gap in two stages (Figure~\ref{fig:pipeline}).
+First, it selects $k$ tokens among the concepts of the ontology by maximizing a \emph{semantic coverage} objective, in which the credit for reaching a token decays with each hop, since part of the meaning is lost at every hop.
+Second, it writes each concept as a \emph{context tree} that records through which relationship each token is reached.
+A rare concept is then expressed with tokens it shares with frequent, related concepts, while keeping the relationships that distinguish it from them.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{imgs/pipeline_illustration.pdf}
+\caption{Overview of the two-stage pipeline on a toy ontology.
+Input: an ontology graph in which the concepts used in the data are shown in red.
+Stage~1 (vocabulary selection): candidate tokens are restricted to the neighbourhood of these concepts (Section~\ref{sec:method:candidates}), and a greedy selection picks a small set of tokens (blue) that best cover them (Sections~\ref{sec:method:score}--\ref{sec:method:selection}).
+Stage~2 (context trees): each concept is rewritten as a tree over the tokens; the outlined concept reaches two tokens directly and a third through an intermediate concept, and keeps these paths rather than a flat set of tokens (Section~\ref{sec:method:tokenizer}).}
+\label{fig:pipeline}
+\end{figure*}
+
+Our contributions are:
+\begin{enumerate}[leftmargin=*, label=(\arabic*)]
+    \item a formulation of vocabulary selection on a DAG ontology as the maximization of a distance-decayed semantic coverage, a monotone submodular objective solved by lazy greedy selection with a $(1 - 1/e)$ guarantee, whose decay can follow properties of the ontology such as the definition status of concepts (Section~\ref{sec:method});
+    \item context trees, which keep the relationship through which each token is reached, and the proximity-coverage score, which weights each branch of a concept's definition and measures how much of the meaning stated by the ontology a tokenization preserves (Sections~\ref{sec:method:tokenizer}--\ref{sec:method:metrics});
+    \item a benchmark on 46,150 SNOMED~CT concepts mapped at a university hospital, in which our method obtains the best average rank over four metrics, and a higher proximity-coverage score, at every compression level, against seven graph-based selections and a set-cover ablation, while using almost every token it selects (Section~\ref{sec:results:benchmark});
+    \item an application to 279 million clinical events, in which a vocabulary of 5,000 tokens represents all 16,370 concepts of the data that are in the ontology graph, including the two thirds that are rare and that frequency truncation discards, with a mean proximity-coverage score of 0.88 for the rare concepts (Section~\ref{sec:results:hero});
+    \item a blinded comparison by semanticians with the closest baseline (Section~\ref{sec:results:expert}).
+\end{enumerate}

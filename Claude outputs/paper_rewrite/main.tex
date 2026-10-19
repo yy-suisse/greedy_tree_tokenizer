@@ -1,0 +1,51 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
+\usepackage[edges]{forest}
+\usepackage[textwidth=16cm, textheight=24cm]{geometry}
+% ------------------------------------------------------------------
+% Draft markers (redefine as no-ops for submission)
+%   \citeneeded{...}  -> red    [CITE: ...]
+%   \doubt{...}       -> blue   [DOUBT: ...]
+%   \notetoself{...}  -> teal   [NOTE: ...]
+%   \needresults{...} -> orange [RESULTS NEEDED: ...]
+% ------------------------------------------------------------------
+\newcommand{\citeneeded}[1]{\textcolor{red}{\textbf{[CITE: #1]}}}
+\newcommand{\doubt}[1]{\textcolor{blue}{\textbf{[DOUBT: #1]}}}
+\newcommand{\notetoself}[1]{\textcolor{teal}{\textit{[NOTE: #1]}}}
+\newcommand{\needresults}[1]{\textcolor{orange}{\textbf{[RESULTS NEEDED: #1]}}}
+\newcommand{\isa}{\texttt{IS\_A}}
+\newcommand{\Mhero}{M_{\mathrm{HERO}}}
+
+\title{Preserving the Meaning of Rare Clinical Concepts:\\ Ontology Tokenization by Distance-Aware Greedy Coverage}
+\author{Yuanyuan Zheng}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\input{paper/sections/abstract}
+\input{sections/introduction}
+\input{sections/background}
+\input{sections/method}
+\input{sections/results}
+\input{sections/discussion}
+\input{sections/limitations}
+
+\bibliographystyle{plain}
+\bibliography{paper/references}
+
+\appendix
+\input{sections/appendix}
+\end{document}
